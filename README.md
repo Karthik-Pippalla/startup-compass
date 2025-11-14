@@ -35,6 +35,8 @@ Key endpoints:
 - `GET /api/jobs/:id` – poll status + outputs.
 - `POST /api/funders` / `GET /api/funders` – manage funder knowledge base.
 
+> The same Express app is exported from `backend/index.js` as the `api` Cloud Function, so the backend can run locally via Node or deploy through Firebase Functions with no code changes.
+
 ### Frontend
 ```bash
 cd frontend
@@ -47,6 +49,17 @@ The UI shows prompt creation, outstanding questions, agent results, and the gene
 ## Firebase Touchpoints
 - `backend/src/config/firebase.js` initializes Admin SDK when credentials are provided.
 - `frontend/src/lib/firebase.ts` exposes a helper to initialize the Firebase client SDK for hosting/auth.
+- `firebase.json` + `.firebaserc` configure Functions + Hosting. Update `.firebaserc` with your real project ID and set `FIREBASE_REGION` in `.env`.
+
+## Firebase Deployment
+1. Install the Firebase CLI (`npm install -g firebase-tools`), then run `firebase login`.
+2. Update `.firebaserc` with your Firebase project ID and copy `backend/.env.example` → `.env`, filling Mongo, OpenAI, and Firebase credentials (including `FIREBASE_REGION` if you need a non-default region).
+3. From `frontend/`, build the UI (`npm run build`) so Hosting serves `frontend/dist`.
+4. Deploy functions and hosting from the repo root:
+   ```bash
+   firebase deploy --only functions,hosting
+   ```
+   Requests to `/api/*` are rewritten to the `api` HTTPS function, while other paths fall back to the SPA entry (`index.html`). Use `firebase emulators:start --only functions,hosting` for a full local stack.
 
 ## Project Structure Highlights
 ```
