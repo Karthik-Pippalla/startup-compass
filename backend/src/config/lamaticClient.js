@@ -180,9 +180,10 @@ async function executeMarketingWorkflow(prompt) {
 }
 
 // Competitor flow configuration
-const COMPETITOR_WORKFLOW_ID = process.env.LAMATIC_COMPETITOR_WORKFLOW_ID || '1e0aa134-aafb-4242-a2ae-92630ab6eba8';
-const COMPETITOR_ENDPOINT = process.env.LAMATIC_COMPETITOR_ENDPOINT || MARKETING_ENDPOINT;
-const COMPETITOR_PROJECT_ID = process.env.LAMATIC_COMPETITOR_PROJECT_ID || MARKETING_PROJECT_ID;
+const LAMATIC_COMPETITOR_API_KEY = process.env.LAMATIC_COMPETITOR_API_KEY;
+const COMPETITOR_WORKFLOW_ID = '18de0198-5515-496a-8f6a-83993b41eb05';
+const COMPETITOR_ENDPOINT = 'https://vaibhavsorganization466-vaibhavsproject304.lamatic.dev/graphql';
+const COMPETITOR_PROJECT_ID = 'a68d7af5-534c-4bd1-8c7a-7999418d3ea3';
 
 const COMPETITOR_WORKFLOW_QUERY = `
 query ExecuteWorkflow(
@@ -191,7 +192,9 @@ query ExecuteWorkflow(
 ) {
   executeWorkflow(
     workflowId: $workflowId
-    payload: { user_input: $user_input }
+    payload: {
+      user_input: $user_input
+    }
   ) {
     status
     result
@@ -199,10 +202,14 @@ query ExecuteWorkflow(
 }`;
 
 async function executeCompetitorWorkflow(prompt) {
-  const apiKey = LAMATIC_MARKETING_API_KEY || LAMATIC_API_KEY_1 || LAMATIC_API_KEY || LAMATIC_API_KEY_2;
-  if (!apiKey) throw new Error('No Lamatic API key available for competitor workflow');
+  const apiKey = LAMATIC_COMPETITOR_API_KEY || LAMATIC_API_KEY;
+  if (!apiKey) throw new Error('LAMATIC_API_KEY not set in environment');
 
-  const variables = { workflowId: COMPETITOR_WORKFLOW_ID, user_input: prompt || 'No prompt provided' };
+  const variables = {
+    workflowId: COMPETITOR_WORKFLOW_ID,
+    user_input: prompt || 'user_input',
+  };
+
   const options = {
     method: 'POST',
     url: COMPETITOR_ENDPOINT,
@@ -214,12 +221,19 @@ async function executeCompetitorWorkflow(prompt) {
     data: { query: COMPETITOR_WORKFLOW_QUERY, variables },
     timeout: 30000,
   };
+
   const response = await axios(options);
   const gql = response.data;
   if (gql.errors) throw new Error(gql.errors.map(e => e.message).join('; '));
   const exec = gql.data?.executeWorkflow;
   if (!exec) throw new Error('Lamatic competitor response missing executeWorkflow field');
-  let result = exec.result; if (typeof result === 'string') { try { result = JSON.parse(result); } catch (_) {} }
+
+  let result = exec.result;
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result);
+    } catch (_) {}
+  }
   return { status: exec.status, raw: exec.result, parsed: result };
 }
 

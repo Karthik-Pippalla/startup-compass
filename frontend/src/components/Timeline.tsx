@@ -2,16 +2,17 @@ import type { TimelinePlan } from '../types/job';
 
 type TimelineProps = {
   plan?: TimelinePlan;
+  title?: string | null;
 };
 
-export const Timeline = ({ plan }: TimelineProps) => {
+export const Timeline = ({ plan, title = 'Checklist & Timeline' }: TimelineProps) => {
   if (!plan) {
     return null;
   }
 
   return (
     <div className="card timeline-card">
-      <h2>Checklist & Timeline</h2>
+      {title ? <h2>{title}</h2> : null}
       <ol className="timeline">
         {plan.phases.map((phase) => (
           <li key={phase.phase}>

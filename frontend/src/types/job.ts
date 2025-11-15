@@ -69,6 +69,14 @@ export interface CollabrationOwner {
   phoneNumber?: string;
 }
 
+export interface CollabrationRequest {
+  requesterId?: string | CollabrationOwner;
+  requesterName?: string;
+  requesterEmail?: string;
+  message?: string;
+  createdAt: string;
+}
+
 export interface CollabrationRecord {
   _id: string;
   jobId: string;
@@ -79,6 +87,7 @@ export interface CollabrationRecord {
   timeline?: TimelinePlan;
   createdAt: string;
   updatedAt: string;
+  requests?: CollabrationRequest[];
 }
 
 export interface CollabrationResponse {

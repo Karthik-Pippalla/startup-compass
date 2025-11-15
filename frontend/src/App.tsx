@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import './App.css';
 import { AgentOutputs } from './components/AgentOutputs';
 import { Timeline } from './components/Timeline';
-import { createJob, getJob, submitAnswers, submitcollabration, getCollabrations } from './lib/api';
-import type { Job, CollabrationRecord, CollabrationOwner } from './types/job';
+import { createJob, getJob, submitAnswers, submitcollabration, getCollabrations, requestCollabration } from './lib/api';
+import type { Job, CollabrationRecord, CollabrationOwner, AgentOutput } from './types/job';
 import { useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { User, LogOut } from 'lucide-react';
@@ -23,6 +23,20 @@ const JOB_STATUS_LABELS: Record<string, string> = {
   failed: 'Failed',
 };
 
+const AGENT_STATUS_LABELS: Record<AgentOutput['status'], string> = {
+  pending: 'Pending',
+  running: 'Running...',
+  succeeded: 'Complete',
+  failed: 'Failed',
+};
+
+const AGENT_STATUS_ICONS: Record<AgentOutput['status'], string> = {
+  pending: '⏳',
+  running: '🔄',
+  succeeded: '✅',
+  failed: '❌',
+};
+
 function App() {
   const { user, userProfile, loading, logout } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
@@ -40,6 +54,11 @@ function App() {
   const [collabrations, setCollabrations] = useState<CollabrationRecord[]>([]);
   const [collabrationsLoading, setCollabrationsLoading] = useState(false);
   const [collabrationsError, setCollabrationsError] = useState<string | null>(null);
+  const [requestingCollabId, setRequestingCollabId] = useState<string | null>(null);
+  const [requestSuccessId, setRequestSuccessId] = useState<string | null>(null);
+  const filteredAgentOutputs = job?.agentOutputs?.filter((output) => output.agent !== 'checklist') ?? [];
+  const checklistOutput = job?.agentOutputs?.find((output) => output.agent === 'checklist') || null;
+  const hasTimeline = Boolean(job?.timeline?.phases?.length);
 
   // Welcome message effect (runs once when authenticated)
   useEffect(() => {
@@ -223,6 +242,8 @@ Just describe your startup idea and I'll get started!
 
   const closeCollabrationsModal = () => {
     setShowCollabrationsModal(false);
+    setRequestSuccessId(null);
+    setRequestingCollabId(null);
   };
 
   const resolveOwnerName = (owner?: CollabrationOwner | string) => {
@@ -277,6 +298,33 @@ Just describe your startup idea and I'll get started!
                         {entry.timeline?.phases && <span>{entry.timeline.phases.length} timeline phases</span>}
                       </div>
                     </div>
+                    <div className="collabration-actions">
+                      <button
+                        type="button"
+                        className="collabrate-button"
+                        onClick={async () => {
+                          if (!userProfile?.id) return;
+                          setRequestingCollabId(entry._id);
+                          setRequestSuccessId(null);
+                          try {
+                            await requestCollabration(entry._id, { userId: userProfile.id });
+                            setRequestSuccessId(entry._id);
+                            fetchCollabrations();
+                          } catch (err) {
+                            const message = err instanceof Error ? err.message : 'Failed to send collabration request';
+                            setCollabrationsError(message);
+                          } finally {
+                            setRequestingCollabId(null);
+                          }
+                        }}
+                        disabled={requestingCollabId === entry._id || (typeof entry.userId === 'object' && (entry.userId as CollabrationOwner)?._id === userProfile?.id)}
+                      >
+                        {requestingCollabId === entry._id ? 'Sending...' : 'Request Collabration'}
+                      </button>
+                      {requestSuccessId === entry._id && (
+                        <span className="collabration-requested">Request sent!</span>
+                      )}
+                    </div>
                     {agentCount > 0 && (
                       <div className="collabration-agents">
                         {entry.agentOutputs.slice(0, 3).map((agent) => (
@@ -290,6 +338,19 @@ Just describe your startup idea and I'll get started!
                         )}
                       </div>
                     )}
+                    {typeof entry.userId === 'object' && (entry.userId as CollabrationOwner)?._id === userProfile?.id && entry.requests?.length ? (
+                      <div className="collabration-requests">
+                        <p className="collabration-request-title">Collabration Requests</p>
+                        <ul>
+                          {entry.requests.map((req) => (
+                            <li key={req.createdAt}>
+                              <strong>{req.requesterName || 'Founder'}</strong> - {req.requesterEmail || 'No email'}
+                              <span>{new Date(req.createdAt).toLocaleString()}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -566,36 +627,49 @@ Just describe your startup idea and I'll get started!
               </p>
             </div>
 
-            {job.agentOutputs?.length ? (
-              <AgentOutputs outputs={job.agentOutputs || []} />
+            {filteredAgentOutputs.length ? (
+              <AgentOutputs outputs={filteredAgentOutputs} />
             ) : (
               <div className="panel-placeholder">
                 <p>The marketing, product, funding, and competitor agents will populate here once your idea is processing.</p>
               </div>
             )}
 
-            {job.status === 'completed' && (
-              <>
-                <div className="timeline-shell">
-                  <Timeline plan={job.timeline} />
-                </div>
-                <div className="collabration-section">
-                  {collabrationSubmitted ? (
-                    <div className="collabration-success">
-                      ✅ Your collabration has been captured. Thank you for sharing your insights!
+            {hasTimeline && (
+              <div className="timeline-shell">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Execution Plan</p>
+                    <h2>Checklist & Timeline</h2>
+                  </div>
+                  {checklistOutput && (
+                    <div className={`status-badge status-${checklistOutput.status}`}>
+                      <span className="status-icon">{AGENT_STATUS_ICONS[checklistOutput.status]}</span>
+                      <span className="status-text">{AGENT_STATUS_LABELS[checklistOutput.status]}</span>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="collabration-button"
-                      onClick={handlecollabrationSubmit}
-                      disabled={isSubmittingcollabration || !userProfile?.id}
-                    >
-                      {isSubmittingcollabration ? 'Submitting...' : 'Submit for Collabration'}
-                    </button>
                   )}
                 </div>
-              </>
+                <Timeline plan={job.timeline} title={null} />
+              </div>
+            )}
+
+            {job.status === 'completed' && (
+              <div className="collabration-section">
+                {collabrationSubmitted ? (
+                  <div className="collabration-success">
+                    ✅ Your collabration has been captured. Thank you for sharing your insights!
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="collabration-button"
+                    onClick={handlecollabrationSubmit}
+                    disabled={isSubmittingcollabration || !userProfile?.id}
+                  >
+                    {isSubmittingcollabration ? 'Submitting...' : 'Submit for Collabration'}
+                  </button>
+                )}
+              </div>
             )}
           </section>
         )}

@@ -1,5 +1,6 @@
 const Job = require('../models/Job');
 const Collabration = require('../models/Collabration');
+const User = require('../models/User');
 const { validationAgent } = require('../services/agents/validationAgent');
 const { runStrategicAgents } = require('../services/agents/orchestrator');
 
@@ -191,8 +192,56 @@ const listCollabrations = async (req, res, next) => {
   try {
     const collabrations = await Collabration.find()
       .sort({ createdAt: -1 })
-      .populate('userId', 'firstName lastName displayName email phoneNumber');
+      .populate('userId', 'firstName lastName displayName email phoneNumber')
+      .populate('requests.requesterId', 'firstName lastName displayName email phoneNumber');
     res.json(collabrations);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requestCollabration = async (req, res, next) => {
+  try {
+    const { collabrationId } = req.params;
+    const { userId, message } = req.body;
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID required' });
+    }
+
+    const collabration = await Collabration.findById(collabrationId);
+    if (!collabration) {
+      return res.status(404).json({ message: 'Collabration not found' });
+    }
+
+    if (collabration.userId?.toString() === userId) {
+      return res.status(400).json({ message: 'You cannot request to collabrate with yourself' });
+    }
+
+    const requester = await User.findById(userId);
+    if (!requester) {
+      return res.status(404).json({ message: 'Requester not found' });
+    }
+
+    const alreadyRequested = collabration.requests?.some((reqItem) => reqItem.requesterId?.toString() === userId);
+    if (alreadyRequested) {
+      return res.status(200).json({ alreadyRequested: true, collabration });
+    }
+
+    collabration.requests = collabration.requests || [];
+    collabration.requests.push({
+      requesterId: requester._id,
+      requesterName: `${requester.firstName || ''} ${requester.lastName || ''}`.trim() || requester.displayName,
+      requesterEmail: requester.email,
+      message,
+    });
+    await collabration.save();
+
+    const populated = await collabration.populate([
+      { path: 'userId', select: 'firstName lastName displayName email phoneNumber' },
+      { path: 'requests.requesterId', select: 'firstName lastName displayName email phoneNumber' },
+    ]);
+
+    res.status(201).json({ collabration: populated });
   } catch (error) {
     next(error);
   }
@@ -204,4 +253,5 @@ module.exports = {
   submitAnswers,
   submitcollabration,
   listCollabrations,
+  requestCollabration,
 };

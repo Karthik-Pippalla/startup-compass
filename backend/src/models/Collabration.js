@@ -25,6 +25,15 @@ const collabrationSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    requests: [
+      {
+        requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        requesterName: String,
+        requesterEmail: String,
+        message: String,
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true },
 );

@@ -57,3 +57,16 @@ export const getCollabrations = async (): Promise<CollabrationRecord[]> => {
   const response = await fetch(`${API_BASE_URL}/jobs/collabrations`);
   return handleResponse(response);
 };
+
+export const requestCollabration = async (
+  collabrationId: string,
+  payload: { userId: string; message?: string },
+): Promise<CollabrationRecord> => {
+  const response = await fetch(`${API_BASE_URL}/jobs/collabrations/${collabrationId}/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleResponse(response);
+  return data.collabration;
+};

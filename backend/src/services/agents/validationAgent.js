@@ -39,15 +39,13 @@ class ValidationAgent extends BaseAgent {
     const answersObject = answersToObject(jobContext?.questionnaire?.answers);
     const originalPrompt = extractOriginalPrompt(jobContext);
 
-    const agentPrompts = originalPrompt
-      ? {
-          marketing: originalPrompt,
-          developer: originalPrompt,
-          technical: originalPrompt, // maintain backward compatibility
-          funding: originalPrompt,
-          competitor: originalPrompt,
-        }
-      : {};
+    const agentPrompts = {};
+    if (originalPrompt) {
+      ['marketing', 'developer', 'funding', 'competitor'].forEach((agent) => {
+        agentPrompts[agent] = originalPrompt;
+      });
+      agentPrompts.technical = originalPrompt; // maintain backward compatibility
+    }
 
     return {
       status: 'complete',
