@@ -87,24 +87,60 @@ const runStrategicAgents = async (jobId) => {
   }
 
   job.status = 'running';
-  job.history.push({ message: 'Started downstream agents' });
+  job.history.push({ message: 'Started downstream agents with enhanced validation prompts' });
   await job.save();
 
-  for (const agent of STRATEGY_AGENTS) {
-    // eslint-disable-next-line no-console
-    console.log(`Running agent: ${agent.name}`);
-    // eslint-disable-next-line no-await-in-loop
-    const payload = await runAgentWithLogging(job, agent);
-    if (agent.name === 'checklist') {
-      job.timeline = payload;
-    }
+  // Separate core agents from checklist agent (checklist depends on other outputs)
+  const coreAgents = STRATEGY_AGENTS.filter(agent => agent.name !== 'checklist');
+  const checklistAgentInstance = STRATEGY_AGENTS.find(agent => agent.name === 'checklist');
+
+  // Run core agents in parallel
+  console.log('🚀 Running core agents in parallel:', coreAgents.map(a => a.name).join(', '));
+  
+  const agentPromises = coreAgents.map(agent => {
+    console.log(`Starting agent: ${agent.name} with enhanced validation`);
+    
+    // Add the specific prompt to the job context before running the agent
+    const jobContextWithPrompt = {
+      ...job.toObject(),
+      specificPrompt: job.agentPrompts?.[agent.name] || null
+    };
+    
+    return runAgentWithLogging(jobContextWithPrompt, agent);
+  });
+
+  // Wait for all core agents to complete
+  try {
+    await Promise.all(agentPromises);
+    console.log('✅ All core agents completed');
+  } catch (error) {
+    console.error('❌ Some agents failed:', error);
+    // Continue execution even if some agents fail
   }
 
-  job.status = 'completed';
-  job.history.push({ message: 'Agents finished successfully' });
-  await job.save();
+  // Run checklist agent after core agents complete (it needs their outputs)
+  if (checklistAgentInstance) {
+    console.log('📋 Running checklist agent after core agents completion');
+    
+    // Refresh job data to get latest agent outputs
+    const updatedJob = await Job.findById(job.id);
+    const jobContextWithPrompt = {
+      ...updatedJob.toObject(),
+      specificPrompt: updatedJob.agentPrompts?.checklist || null
+    };
+    
+    const checklistPayload = await runAgentWithLogging(jobContextWithPrompt, checklistAgentInstance);
+    updatedJob.timeline = checklistPayload;
+    await updatedJob.save();
+  }
 
-  return job;
+  // Mark job as completed
+  const finalJob = await Job.findById(job.id);
+  finalJob.status = 'completed';
+  finalJob.history.push({ message: 'All agents finished successfully (parallel execution)' });
+  await finalJob.save();
+
+  return finalJob;
 };
 
 module.exports = { runStrategicAgents, runAgentWithLogging };

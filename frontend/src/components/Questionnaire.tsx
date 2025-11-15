@@ -33,20 +33,42 @@ export const Questionnaire = ({ questions, onSubmit, disabled }: QuestionnairePr
   const renderInput = (question: QuestionnaireQuestion) => {
     const commonProps = {
       value: answers[question.key] ?? '',
-      onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-        handleChange(question.key, event.target.value),
       disabled: submitting || disabled,
     };
 
+    if (question.type === 'select') {
+      return (
+        <select 
+          {...commonProps}
+          onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
+            handleChange(question.key, event.target.value)
+          }
+        >
+          <option value="">Select an option...</option>
+          {question.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    const inputProps = {
+      ...commonProps,
+      onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        handleChange(question.key, event.target.value),
+    };
+
     if (question.type === 'textarea') {
-      return <textarea {...commonProps} />;
+      return <textarea {...inputProps} />;
     }
 
     if (question.type === 'number') {
-      return <input type="number" {...commonProps} />;
+      return <input type="number" {...inputProps} />;
     }
 
-    return <input {...commonProps} />;
+    return <input {...inputProps} />;
   };
 
   return (

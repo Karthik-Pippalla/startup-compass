@@ -56,6 +56,15 @@ const JobSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    agentPrompts: {
+      type: {
+        marketing: String,
+        funding: String,
+        technical: String,
+        competitor: String,
+      },
+      default: {},
+    },
     status: {
       type: String,
       enum: ['pending', 'collecting_info', 'ready', 'running', 'completed', 'failed'],

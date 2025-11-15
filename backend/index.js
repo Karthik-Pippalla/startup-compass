@@ -1,4 +1,5 @@
-const functions = require('firebase-functions');
+const { onRequest } = require('firebase-functions/v2/https');
+const { setGlobalOptions } = require('firebase-functions/v2');
 const app = require('./src/app');
 const connectDB = require('./src/config/db');
 const { initFirebase } = require('./src/config/firebase');
@@ -21,14 +22,14 @@ const bootstrap = async () => {
   return bootstrapPromise;
 };
 
-const runtimeOptions = {
-  memory: '1GB',
-  timeoutSeconds: 540,
-};
+// Set global options for all functions
+setGlobalOptions({ 
+  region: config.firebase.region || 'us-central1',
+  memory: '1GiB',
+  timeoutSeconds: 540
+});
 
-const region = config.firebase.region || 'us-central1';
-
-const api = functions.region(region).runWith(runtimeOptions).https.onRequest(async (req, res) => {
+const api = onRequest(async (req, res) => {
   await bootstrap();
   return app(req, res);
 });

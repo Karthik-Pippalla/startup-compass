@@ -1,4 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'demo-key',
@@ -10,10 +11,19 @@ const firebaseConfig = {
 };
 
 let firebaseApp: FirebaseApp | null = null;
+let auth: Auth | null = null;
 
 export const getFirebaseApp = () => {
   if (!firebaseApp) {
     firebaseApp = initializeApp(firebaseConfig);
   }
   return firebaseApp;
+};
+
+export const getFirebaseAuth = () => {
+  if (!auth) {
+    const app = getFirebaseApp();
+    auth = getAuth(app);
+  }
+  return auth;
 };

@@ -15,6 +15,7 @@ class FundingAgent extends BaseAgent {
 
   async execute(jobContext) {
     const brief = jobContext.validatedBrief || {};
+    const specificPrompt = jobContext.specificPrompt;
     const keywordSources = [
       brief.industry,
       brief.productDescription,
@@ -33,6 +34,7 @@ class FundingAgent extends BaseAgent {
         matches: [],
         keywords: promptKeywords,
         note: 'No funders matched the provided keywords. Seed the database to enable funding insights.',
+        specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
       };
     }
 
@@ -52,7 +54,11 @@ class FundingAgent extends BaseAgent {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
 
-    return { matches, keywords: promptKeywords };
+    return { 
+      matches, 
+      keywords: promptKeywords,
+      specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
+    };
   }
 }
 

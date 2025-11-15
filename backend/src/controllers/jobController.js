@@ -16,12 +16,13 @@ const applyValidation = async (job) => {
   job.validatedBrief = validationResult.validatedBrief;
   job.questionnaire.questions = validationResult.questions;
   job.missingFields = validationResult.missingFields;
+  job.agentPrompts = validationResult.agentPrompts; // Store generated prompts
   job.status =
     validationResult.status === 'complete' ? (job.status === 'running' ? 'running' : 'ready') : 'collecting_info';
   job.history.push({
     message:
       validationResult.status === 'complete'
-        ? 'Validation complete'
+        ? 'Validation complete - Agent prompts generated'
         : `Validation needs info: ${validationResult.missingFields.join(', ')}`,
   });
   await job.save();

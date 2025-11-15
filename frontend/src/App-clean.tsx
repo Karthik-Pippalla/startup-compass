@@ -4,9 +4,6 @@ import { AgentOutputs } from './components/AgentOutputs';
 import { Timeline } from './components/Timeline';
 import { createJob, getJob, submitAnswers } from './lib/api';
 import type { Job } from './types/job';
-import { useAuth } from './contexts/AuthContext';
-import { AuthPage } from './components/AuthPage';
-import { User, LogOut } from 'lucide-react';
 
 type Message = {
   id: string;
@@ -16,7 +13,6 @@ type Message = {
 };
 
 function App() {
-  const { user, userProfile, loading, logout } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -25,10 +21,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
 
-  // Welcome message effect (runs once when authenticated)
+  // Add welcome message on first load
   useEffect(() => {
-    if (loading) return; // avoid during initial loading
-    if (!user || !userProfile) return; // only once authenticated
     if (messages.length === 0) {
       setMessages([{
         id: '1',
@@ -51,74 +45,63 @@ Just describe your startup idea and I'll get started!
         timestamp: new Date()
       }]);
     }
-  }, [loading, user, userProfile, messages.length]);
+  }, [messages.length]);
 
-  // Polling effect (only when a job is active & authenticated)
   useEffect(() => {
-    if (!user || !userProfile) return;
     if (!jobId) return;
 
-    const getPollingInterval = (jobStatus: string) => {
-      if (jobStatus === 'running') return 1500;
-      if (jobStatus === 'collecting_info') return 2000;
-      return 4000;
-    };
-
-    let cancelled = false;
-    const poll = async () => {
+    const interval = setInterval(async () => {
       try {
         const nextJob = await getJob(jobId);
-        if (cancelled) return;
         setJob(nextJob);
+        
+        // Check if questionnaire is needed
         if (nextJob.status === 'collecting_info' && nextJob.questionnaire?.questions?.length > 0) {
           setShowQuestionnaire(true);
         }
+        
+        // Update messages based on job status
         updateMessagesBasedOnJobStatus(nextJob);
-        const nextInterval = getPollingInterval(nextJob.status);
-        setTimeout(poll, nextInterval);
       } catch (err) {
-        if (cancelled) return;
-        setTimeout(poll, 5000);
+        console.error(err);
       }
-    };
-    poll();
-    return () => { cancelled = true; };
-  }, [user, userProfile, jobId, messages]);
+    }, 4000);
 
-  // Clear session state on logout
-  useEffect(() => {
-    if (!user) {
-      setJob(null);
-      setJobId(null);
-      setMessages([]);
-      setShowQuestionnaire(false);
-      setError(null);
-      setInputMessage('');
-    }
-  }, [user]);
+    return () => clearInterval(interval);
+  }, [jobId, messages]);
 
   const updateMessagesBasedOnJobStatus = (currentJob: Job) => {
     if (currentJob.status === 'running' && !messages.some(m => m.content.includes('analyzing your idea'))) {
-      addMessage('assistant', '🚀 Great! I\'m now analyzing your idea with my specialized AI agents running in parallel:\n\n📈 **Marketing Agent** - Analyzing market positioning and go-to-market strategy\n💻 **Technical Agent** - Planning architecture and development roadmap\n💰 **Funding Agent** - Matching with relevant investors\n🏆 **Competitor Agent** - Researching competitive landscape\n\nResults will appear below as each agent completes its analysis...');
+      addMessage('assistant', '🚀 Great! I\'m now analyzing your idea with my team of specialized agents. This will take a moment...');
     } else if (currentJob.status === 'completed' && !messages.some(m => m.content.includes('analysis complete'))) {
-      addMessage('assistant', '✅ **Analysis Complete!** All agents have finished their analysis. You can see the detailed insights from each agent below. The final checklist agent has also created a comprehensive project timeline based on all the findings.');
+      addMessage('assistant', '✅ Analysis complete! Here are the insights from our marketing, development, funding, and competitor analysis agents:');
     }
   };
 
   const addMessage = (type: 'user' | 'assistant' | 'system', content: string) => {
-    const newMessage: Message = { id: Date.now().toString(), type, content, timestamp: new Date() };
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      type,
+      content,
+      timestamp: new Date()
+    };
     setMessages(prev => [...prev, newMessage]);
   };
 
   const handlePromptSubmit = async (prompt: string) => {
     if (!prompt.trim()) return;
+    
+    // Add user message
     addMessage('user', prompt);
     setIsLoading(true);
     setError(null);
+    
     try {
       const newJob = await createJob({ prompt, brief: {} });
       setJob(newJob);
       setJobId(newJob._id);
+      
+      // Add assistant response
       addMessage('assistant', 'Let me validate your idea and see if I need any additional information...');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to process your request';
@@ -131,6 +114,7 @@ Just describe your startup idea and I'll get started!
 
   const handleQuestionnaireSubmit = async (answers: Record<string, string>) => {
     if (!jobId) return;
+    
     try {
       const updated = await submitAnswers(jobId, answers);
       setJob(updated);
@@ -151,22 +135,6 @@ Just describe your startup idea and I'll get started!
     }
   };
 
-  // After hooks: conditional rendering
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #ea580c 100%)' }}>
-        <div style={{ textAlign: 'center', color: 'white' }}>
-          <div style={{ width: '50px', height: '50px', border: '4px solid rgba(255,255,255,0.3)', borderTop: '4px solid white', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user || !userProfile) {
-    return <AuthPage key="auth" defaultView="login" />;
-  }
-
   // Show landing page if no job has been started
   if (!jobId) {
     return (
@@ -181,47 +149,6 @@ Just describe your startup idea and I'll get started!
         color: 'white',
         fontFamily: 'Inter, system-ui, sans-serif'
       }}>
-        {/* User Header */}
-        <div style={{
-          position: 'absolute',
-          top: '1rem',
-          right: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '2rem',
-          padding: '0.5rem 1rem',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <User size={20} />
-            <span style={{ fontSize: '0.9rem' }}>{userProfile.firstName}</span>
-          </div>
-          <button
-            onClick={logout}
-            style={{
-              background: 'rgba(239, 68, 68, 0.8)',
-              border: 'none',
-              borderRadius: '1rem',
-              padding: '0.5rem 1rem',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.9rem',
-              transition: 'background 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 1)'}
-            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.8)'}
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
-        </div>
-        
         <div style={{ textAlign: 'center', maxWidth: '800px', marginBottom: '3rem' }}>
           <h1 style={{ 
             fontSize: '4rem', 
@@ -294,37 +221,6 @@ Just describe your startup idea and I'll get started!
         <div>
           <h1>🧭 Startup Compass</h1>
           <p>AI-powered startup validation and planning</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
-            background: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '2rem',
-          }}>
-            <User size={20} />
-            <span>{userProfile.firstName}</span>
-          </div>
-          <button
-            onClick={logout}
-            style={{
-              background: '#ef4444',
-              border: 'none',
-              borderRadius: '0.5rem',
-              padding: '0.5rem 1rem',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.9rem',
-            }}
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
         </div>
       </header>
 
