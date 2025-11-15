@@ -16,10 +16,34 @@ const USER_TYPES = [
 ] as const;
 
 const INTEREST_OPTIONS = [
-  'Technology', 'SaaS', 'AI/ML', 'E-commerce', 'FinTech', 
-  'HealthTech', 'EdTech', 'Marketing', 'Sales', 'Product Management',
-  'Design', 'Development', 'Data Science', 'Blockchain', 'IoT',
-  'Mobile Apps', 'Web Development', 'Cloud Computing', 'Cybersecurity', 'DevOps'
+  // AI / ML
+  'Artificial Intelligence', 'Machine Learning', 'Deep Learning', 'Generative AI (LLMs)', 'MLOps', 'Computer Vision', 'Natural Language Processing', 'Speech AI', 'Reinforcement Learning', 'Edge AI',
+  // Data & Analytics
+  'Data Science', 'Data Engineering', 'Big Data', 'Analytics', 'Real-time Streaming (Kafka/Pulsar)', 'Lakehouse (Delta/Iceberg/Hudi)', 'ETL/ELT', 'Data Visualization', 'Data Governance & Quality',
+  // Web / Frontend
+  'Web Development', 'React', 'Next.js', 'Vue', 'Svelte', 'SolidJS', 'WebAssembly', 'TypeScript', 'Design Systems', 'Tailwind CSS', 'Jamstack',
+  // Mobile
+  'iOS', 'Android', 'Flutter', 'React Native',
+  // Backend & APIs
+  'Node.js', 'Python', 'Go (Golang)', 'Rust', 'Java', 'Kotlin', 'Deno', 'Microservices', 'Serverless', 'GraphQL', 'gRPC', 'Event-Driven Architecture', 'API Design & Security',
+  // Cloud & DevOps
+  'Cloud Computing', 'AWS', 'Azure', 'Google Cloud', 'Kubernetes', 'Docker', 'Terraform', 'Pulumi', 'CI/CD', 'Observability (Logs/Traces/Metrics)', 'SRE', 'Platform Engineering', 'FinOps',
+  // Security
+  'Cybersecurity', 'Application Security', 'Cloud Security', 'Zero Trust', 'DevSecOps', 'Identity & Access Management (IAM)', 'Privacy Engineering', 'Threat Detection & Response',
+  // Web3 / Blockchain
+  'Blockchain', 'Smart Contracts', 'DeFi', 'NFTs', 'Layer 2 (Optimism/Arbitrum/zk)', 'DAOs', 'Web3 Infrastructure',
+  // AR/VR, Gaming & 3D
+  'AR/VR', 'Spatial Computing', 'Metaverse', '3D Graphics', 'Game Development (Unity/Unreal)',
+  // Hardware, IoT & Edge
+  'IoT', 'Edge Computing', 'Robotics', 'Drones', 'Wearables', 'Embedded Systems', '5G/6G',
+  // Science, Health & Climate
+  'BioTech', 'Genomics', 'Digital Health', 'MedTech', 'ClimateTech', 'Clean Energy', 'Carbon Accounting',
+  // Productivity & Automation
+  'No-code/Low-code', 'Automation & RPA', 'Chatbots', 'Collaboration Tools',
+  // Business & Industry
+  'SaaS', 'E-commerce', 'FinTech', 'InsurTech', 'PropTech', 'Supply Chain Tech', 'Creator Economy', 'Marketing Tech', 'Sales Tech', 'Product Management', 'Design', 'Development', 'DevOps',
+  // Advanced Computing
+  'Quantum Computing', 'Cryptography', 'Differential Privacy', 'Homomorphic Encryption'
 ];
 
 const inputStyle = {
@@ -522,26 +546,38 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onSuccess }
               )}
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              {INTEREST_OPTIONS.filter(opt => !interests.includes(opt)).map((interest) => (
-                <button
-                  key={interest}
-                  type="button"
-                  onClick={() => handleAddInterest(interest)}
-                  disabled={interests.length >= 10}
-                  style={{
-                    padding: '0.25rem 0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '9999px',
-                    fontSize: '0.875rem',
-                    background: 'white',
-                    cursor: interests.length >= 10 ? 'not-allowed' : 'pointer',
-                    opacity: interests.length >= 10 ? 0.5 : 1
-                  }}
-                >
-                  + {interest}
-                </button>
-              ))}
+            {/* Scrollable interests options */}
+            <div style={{
+              maxHeight: '260px',
+              overflowY: 'auto',
+              padding: '0.5rem',
+              border: '1px solid #e5e7eb',
+              borderRadius: '0.5rem',
+              background: '#ffffff',
+              marginBottom: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {INTEREST_OPTIONS.filter(opt => !interests.includes(opt)).map((interest) => (
+                  <button
+                    key={interest}
+                    type="button"
+                    onClick={() => handleAddInterest(interest)}
+                    disabled={interests.length >= 10}
+                    style={{
+                      padding: '0.25rem 0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '9999px',
+                      fontSize: '0.875rem',
+                      background: 'white',
+                      color: '#111827', // ensure visible on white background
+                      cursor: interests.length >= 10 ? 'not-allowed' : 'pointer',
+                      opacity: interests.length >= 10 ? 0.5 : 1
+                    }}
+                  >
+                    + {interest}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>

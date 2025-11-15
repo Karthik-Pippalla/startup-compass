@@ -1,5 +1,5 @@
 const BaseAgent = require('./baseAgent');
-const { normalizeList } = require('../../utils/text');
+const { executeDeveloperWorkflow } = require('../../config/lamaticClient');
 
 class DeveloperAgent extends BaseAgent {
   constructor() {
@@ -9,82 +9,99 @@ class DeveloperAgent extends BaseAgent {
   async execute(jobContext) {
     const brief = jobContext.validatedBrief || {};
     const specificPrompt = jobContext.specificPrompt;
-    const features = normalizeList(brief.keyFeatures);
-    const constraints = normalizeList(brief.technicalConstraints);
-    
-    // Enhanced technical analysis based on validation
-    const technologyPreference = brief.technologyPreference || '';
-    const technicalExpertise = brief.technicalExpertise || 'Intermediate';
+    // Added vision / strategic focus sentence provided by user as fallback
+    const visionSentence = jobContext.visionSentence || brief.visionSentence || 'Instead of building a massive, general-purpose AI tool, create a Software as a Service (SaaS) platform that uses AI to solve one very specific, complex, and recurring workflow problem for a highly targeted niche. The product acts as an always-on, automated, expert consultant for that single task.';
 
-    let stack = {
-      frontend: 'React + Vite + TypeScript',
-      backend: 'Node.js (Express or Fastify)',
-      database: 'MongoDB Atlas',
-      hosting: 'Firebase Hosting + Cloud Functions',
-      integrations: constraints,
+    // Build input string for Lamatic developer workflow (extended)
+    const parts = [
+      `Industry: ${brief.industry || ''}`,
+      `Product: ${brief.productDescription || ''}`,
+      `Problem: ${brief.problemStatement || ''}`,
+      `Features: ${Array.isArray(brief.keyFeatures) ? brief.keyFeatures.join(', ') : (brief.keyFeatures || '')}`,
+      `Tech Pref: ${brief.technologyPreference || ''}`,
+      `Expertise: ${brief.technicalExpertise || ''}`,
+      `Vision: ${visionSentence}`,
+    ].filter(Boolean).join(' | ');
+
+    let result;
+    try {
+      result = await executeDeveloperWorkflow(parts);
+    } catch (err) {
+      return {
+        stack: {},
+        apiDesign: [],
+        deliveryPlan: [],
+        risks: [err.message],
+        error: `Lamatic developer workflow failed: ${err.message}`,
+        specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
+      };
+    }
+
+    const parsed = result.parsed || {};
+
+    // Helper to normalize comma separated strings to array
+    const toArray = (val) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'object') return Object.values(val).flat();
+      return String(val).split(/[,\n]/).map(v => v.trim()).filter(Boolean);
     };
 
-    // Adjust stack based on technology preferences
-    if (technologyPreference.toLowerCase().includes('python')) {
-      stack.backend = 'Python (FastAPI or Django)';
-      stack.hosting = 'AWS Lambda + API Gateway or Heroku';
-    } else if (technologyPreference.toLowerCase().includes('java')) {
-      stack.backend = 'Java (Spring Boot)';
-      stack.hosting = 'AWS Elastic Beanstalk or Google Cloud Run';
-    } else if (technologyPreference.toLowerCase().includes('php')) {
-      stack.backend = 'PHP (Laravel or Symfony)';
-      stack.hosting = 'DigitalOcean or AWS EC2';
-    }
+    // New Lamatic technology category mapping
+    const frontendTechnologies = toArray(parsed.frontend_technologies);
+    const backendTechnologies = toArray(parsed.backend_technologies);
+    const sqlDatabases = toArray(parsed.sql_databases);
+    const noSqlDatabases = toArray(parsed.nosql_databases);
+    const authenticationAndAuthorization = toArray(parsed.authentication_and_authorization);
+    const devOpsAndDeployment = toArray(parsed.devops_and_deployment);
+    const apisAndIntegrations = toArray(parsed.apis_and_integrations);
+    const aiOrMl = toArray(parsed.ai_or_ml);
+    const cloudServices = toArray(parsed.cloud_services);
+    const optionalEnhancements = toArray(parsed.optional_enhancements);
 
-    // Adjust complexity based on technical expertise
-    let milestones;
-    if (technicalExpertise === 'Non-technical' || technicalExpertise === 'Basic') {
-      milestones = [
-        { name: 'No-code/low-code solution research', durationWeeks: 1 },
-        { name: 'MVP using no-code tools', durationWeeks: 2 },
-        { name: 'Testing and deployment', durationWeeks: 1 },
-      ];
-      stack.recommendation = 'Consider no-code solutions like Bubble, Webflow, or Airtable';
-    } else if (technicalExpertise === 'Expert' || technicalExpertise === 'Advanced') {
-      milestones = [
-        { name: 'Advanced architecture design', durationWeeks: 1 },
-        { name: 'Core feature implementation with advanced patterns', durationWeeks: 4 },
-        { name: 'Performance optimization & testing', durationWeeks: 2 },
-        { name: 'DevOps & CI/CD setup', durationWeeks: 1 },
-      ];
-    } else {
-      milestones = [
-        { name: 'Foundational architecture', durationWeeks: 1 },
-        { name: 'Core feature implementation', durationWeeks: 3 },
-        { name: 'Integrations & QA', durationWeeks: 2 },
-      ];
-    }
+    // Legacy mapping fallback
+    const stackLegacy = parsed.stack || parsed.techStack || parsed.stackRecommendation || {};
+    const apiDesignLegacy = parsed.apiDesign || parsed.endpoints || [];
+    const deliveryPlanLegacy = parsed.deliveryPlan || parsed.milestones || [];
+    const risksLegacy = parsed.risks || parsed.riskFactors || [];
 
-    const risks = [
-      'Ambiguous scope for key features',
-      'Data access or compliance requirements not defined',
-      'Third-party dependency readiness',
-    ];
-
-    // Add expertise-specific risks
-    if (technicalExpertise === 'Non-technical') {
-      risks.push('Need for technical co-founder or development team');
-      risks.push('Learning curve for no-code platforms');
-    } else if (technicalExpertise === 'Expert') {
-      risks.push('Over-engineering the initial MVP');
-      risks.push('Time spent on optimization vs. market validation');
-    }
+    // Consolidated stack object combining new categories
+    const stack = {
+      frontend: frontendTechnologies,
+      backend: backendTechnologies,
+      sql: sqlDatabases,
+      nosql: noSqlDatabases,
+      auth: authenticationAndAuthorization,
+      devops: devOpsAndDeployment,
+      apis: apisAndIntegrations,
+      ai_ml: aiOrMl,
+      cloud: cloudServices,
+      enhancements: optionalEnhancements,
+      legacy: stackLegacy,
+    };
 
     return {
+      // New structured technology recommendations
       stack,
-      apiDesign: features.map((feature, index) => ({
-        name: `${feature}-api-${index + 1}`,
-        description: `Endpoints required to support ${feature}.`,
-      })),
-      deliveryPlan: milestones,
-      risks,
-      technicalExpertise,
-      technologyPreference: technologyPreference || 'No specific preferences',
+      frontendTechnologies,
+      backendTechnologies,
+      sqlDatabases,
+      noSqlDatabases,
+      authenticationAndAuthorization,
+      devOpsAndDeployment,
+      apisAndIntegrations,
+      aiOrMl,
+      cloudServices,
+      optionalEnhancements,
+      // Legacy fields preserved for backward compatibility
+      apiDesign: Array.isArray(apiDesignLegacy) ? apiDesignLegacy : [],
+      deliveryPlan: Array.isArray(deliveryPlanLegacy) ? deliveryPlanLegacy : [],
+      risks: Array.isArray(risksLegacy) ? risksLegacy : [],
+      technicalExpertise: brief.technicalExpertise || 'Unknown',
+      technologyPreference: brief.technologyPreference || 'No specific preferences',
+      visionSentence,
+      lamaticStatus: result.status,
+      raw: result.raw,
       specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
     };
   }

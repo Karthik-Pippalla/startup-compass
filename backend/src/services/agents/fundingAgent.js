@@ -1,12 +1,5 @@
 const BaseAgent = require('./baseAgent');
-const Funder = require('../../models/Funder');
-const { extractKeywords, normalizeList } = require('../../utils/text');
-
-const scoreFunder = (funderKeywords, promptKeywords) => {
-  const promptSet = new Set(promptKeywords);
-  const overlap = funderKeywords.filter((kw) => promptSet.has(kw.toLowerCase()));
-  return overlap.length / Math.max(promptSet.size, 1);
-};
+const { executeFundingWorkflow } = require('../../config/lamaticClient');
 
 class FundingAgent extends BaseAgent {
   constructor() {
@@ -16,47 +9,45 @@ class FundingAgent extends BaseAgent {
   async execute(jobContext) {
     const brief = jobContext.validatedBrief || {};
     const specificPrompt = jobContext.specificPrompt;
-    const keywordSources = [
+
+    // Build idea text from brief fields
+    const ideaParts = [
       brief.industry,
       brief.productDescription,
       brief.problemStatement,
-      ...(normalizeList(brief.keyFeatures) || []),
+      Array.isArray(brief.keyFeatures) ? brief.keyFeatures.join(', ') : undefined,
     ].filter(Boolean);
+    const idea = ideaParts.join(' | ');
 
-    const promptKeywords = Array.from(
-      new Set(keywordSources.flatMap((source) => extractKeywords(source))),
-    );
-
-    const funders = await Funder.find({ keywords: { $in: promptKeywords } }).limit(10);
-
-    if (!funders.length) {
+    let workflowResult;
+    try {
+      workflowResult = await executeFundingWorkflow(idea);
+    } catch (err) {
       return {
         matches: [],
-        keywords: promptKeywords,
-        note: 'No funders matched the provided keywords. Seed the database to enable funding insights.',
+        error: `Lamatic workflow failed: ${err.message}`,
         specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
       };
     }
 
-    const matches = funders
-      .map((funder) => {
-        const funderKeywords = (funder.keywords || []).map((kw) => kw.toLowerCase());
-        return {
-          id: funder.id,
-          name: funder.name,
-          contact: funder.contact,
-          stageFocus: funder.stageFocus,
-          geography: funder.geography,
-          score: scoreFunder(funderKeywords, promptKeywords),
-          keywords: funder.keywords,
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
+    const parsed = workflowResult.parsed || {};
+    // Expect funders list in parsed.funders or parsed.result or similar; attempt flexible extraction
+    const funderList = parsed.funders || parsed.funderList || parsed.result || parsed.data || [];
 
-    return { 
-      matches, 
-      keywords: promptKeywords,
+    const matches = (Array.isArray(funderList) ? funderList : []).map(f => ({
+      id: f.id || f._id || f.name,
+      name: f.name || f.title || 'Unknown Funder',
+      contact: f.contact || { email: f.email, website: f.website },
+      stageFocus: f.stageFocus || f.stage || [],
+      geography: f.geography || f.location || [],
+      score: f.score || f.matchScore || null,
+      keywords: f.keywords || [],
+    })).slice(0, 5);
+
+    return {
+      matches,
+      lamaticStatus: workflowResult.status,
+      raw: workflowResult.raw,
       specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
     };
   }
