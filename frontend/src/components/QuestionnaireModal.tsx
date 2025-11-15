@@ -25,6 +25,7 @@ export const QuestionnaireModal = ({ questions, onSubmit, onClose }: Questionnai
     try {
       await onSubmit(answers);
       setAnswers({});
+      onClose(); // dismiss after submit
     } finally {
       setSubmitting(false);
     }
@@ -37,7 +38,6 @@ export const QuestionnaireModal = ({ questions, onSubmit, onClose }: Questionnai
         handleChange(question.key, event.target.value),
       disabled: submitting,
       placeholder: question.helpText || '',
-      required: true
     };
 
     if (question.type === 'textarea') {
@@ -77,9 +77,8 @@ export const QuestionnaireModal = ({ questions, onSubmit, onClose }: Questionnai
                 <label className="modal-label">
                   <span className="modal-label-text">
                     {question.label}
-                    <span className="required">*</span>
                   </span>
-                  {renderInput(question)}
+                  {renderInput({ ...question, /* force optional */ type: question.type })}
                   {question.helpText && (
                     <span className="modal-help-text">{question.helpText}</span>
                   )}

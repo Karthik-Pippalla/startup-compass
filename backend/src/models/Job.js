@@ -60,7 +60,8 @@ const JobSchema = new mongoose.Schema(
       type: {
         marketing: String,
         funding: String,
-        technical: String,
+        developer: String, // renamed from technical for alignment with developer agent
+        technical: String, // backward compatibility
         competitor: String,
       },
       default: {},

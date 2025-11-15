@@ -1,8 +1,28 @@
 import type { AgentOutput } from '../types/job';
 
+// Helper renderers for dynamic objects from workflows
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const renderKV = (obj?: Record<string, unknown>) => {
+  if (!isObject(obj)) return null;
+  const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null);
+  if (!entries.length) return null;
+  return (
+    <div className="kv-list">
+      {entries.map(([k, v]) => (
+        <div key={k} className="kv-row">
+          <strong>{k.replace(/_/g, ' ')}:</strong>{' '}
+          {isObject(v) ? JSON.stringify(v, null, 2) : Array.isArray(v) ? (v as unknown[]).join(', ') : String(v)}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 type AgentOutputsProps = {
   outputs: AgentOutput[];
 };
+
+const AGENT_ORDER = ['competitor', 'checklist', 'developer', 'funding', 'marketing'];
 
 const statusLabel: Record<AgentOutput['status'], string> = {
   pending: 'Pending',
@@ -43,22 +63,26 @@ const formatAgentOutput = (agent: string, payload: any) => {
               <p><strong>{payload.targetMarket}</strong> ({payload.launchScope})</p>
             </div>
           )}
-          <div className="section">
-            <h4>👥 Demographics</h4>
-            {payload.demographics?.map((demo: any, index: number) => (
-              <div key={index} className="demographic-item">
-                <strong>{demo.segment}</strong>: {demo.painPoint}
-              </div>
-            ))}
-          </div>
-          <div className="section">
-            <h4>📢 Acquisition Channels</h4>
-            <ul>
-              {payload.acquisitionChannels?.map((channel: string, index: number) => (
-                <li key={index}>{channel}</li>
-              ))}
-            </ul>
-          </div>
+
+          {/* Structured Profiles per schema */}
+          {(payload.demographicProfile || payload.demographics) && (
+            <div className="section">
+              <h4>👥 Demographic Profile</h4>
+              {renderKV(payload.demographicProfile || payload.demographics)}
+            </div>
+          )}
+          {payload.behavioralProfile && (
+            <div className="section">
+              <h4>🧠 Behavioral Profile</h4>
+              {renderKV(payload.behavioralProfile)}
+            </div>
+          )}
+          {payload.psychographicProfile && (
+            <div className="section">
+              <h4>💡 Psychographic Profile</h4>
+              {renderKV(payload.psychographicProfile)}
+            </div>
+          )}
         </div>
       );
     
@@ -66,67 +90,127 @@ const formatAgentOutput = (agent: string, payload: any) => {
       return (
         <div className="developer-output">
           <div className="section">
-            <h4>🛠️ Tech Stack</h4>
+            <h4>🛠️ Tech Stack (Categories)</h4>
             <div className="tech-stack">
-              <div><strong>Frontend:</strong> {payload.stack?.frontend}</div>
-              <div><strong>Backend:</strong> {payload.stack?.backend}</div>
-              <div><strong>Database:</strong> {payload.stack?.database}</div>
-              <div><strong>Hosting:</strong> {payload.stack?.hosting}</div>
+              <div><strong>Frontend:</strong> {(payload.frontendTechnologies || []).join(', ') || '—'}</div>
+              <div><strong>Backend:</strong> {(payload.backendTechnologies || []).join(', ') || '—'}</div>
+              <div><strong>SQL DB:</strong> {(payload.sqlDatabases || []).join(', ') || '—'}</div>
+              <div><strong>NoSQL DB:</strong> {(payload.noSqlDatabases || []).join(', ') || '—'}</div>
+              <div><strong>Auth:</strong> {(payload.authenticationAndAuthorization || []).join(', ') || '—'}</div>
+              <div><strong>DevOps:</strong> {(payload.devOpsAndDeployment || []).join(', ') || '—'}</div>
+              <div><strong>APIs & Integrations:</strong> {(payload.apisAndIntegrations || []).join(', ') || '—'}</div>
+              <div><strong>AI / ML:</strong> {(payload.aiOrMl || []).join(', ') || '—'}</div>
+              <div><strong>Cloud:</strong> {(payload.cloudServices || []).join(', ') || '—'}</div>
+              <div><strong>Enhancements:</strong> {(payload.optionalEnhancements || []).join(', ') || '—'}</div>
             </div>
-            {payload.stack?.recommendation && (
-              <div className="recommendation">
-                <strong>💡 Recommendation:</strong> {payload.stack.recommendation}
-              </div>
+            {payload.stack?.legacy && (
+              <div className="recommendation"><strong>Legacy Stack Fields:</strong> {JSON.stringify(payload.stack.legacy)}</div>
+            )}
+            {payload.technologyPreference && (
+              <p className="note"><strong>Preference:</strong> {payload.technologyPreference}</p>
+            )}
+            {payload.visionSentence && (
+              <p className="note"><strong>Vision:</strong> {payload.visionSentence}</p>
             )}
           </div>
-          <div className="section">
-            <h4>📅 Delivery Plan</h4>
-            <div className="milestones">
-              {payload.deliveryPlan?.map((milestone: any, index: number) => (
-                <div key={index} className="milestone">
-                  <strong>{milestone.name}</strong> - {milestone.durationWeeks} weeks
-                </div>
-              ))}
+          {Array.isArray(payload.apiDesign) && payload.apiDesign.length > 0 && (
+            <div className="section">
+              <h4>🧩 API Design</h4>
+              <ul>
+                {payload.apiDesign.map((ep: any, i: number) => (
+                  <li key={i}>{ep.name || ep.title || `Endpoint ${i+1}`}</li>
+                ))}
+              </ul>
             </div>
-          </div>
-          <div className="section">
-            <h4>⚠️ Risks</h4>
-            <ul>
-              {payload.risks?.map((risk: string, index: number) => (
-                <li key={index}>{risk}</li>
-              ))}
-            </ul>
-          </div>
+          )}
+          {Array.isArray(payload.deliveryPlan) && payload.deliveryPlan.length > 0 && (
+            <div className="section">
+              <h4>📅 Delivery Plan</h4>
+              <div className="milestones">
+                {payload.deliveryPlan.map((milestone: any, index: number) => (
+                  <div key={index} className="milestone">
+                    <strong>{milestone.name || milestone.title || milestone.phase || `Phase ${index+1}`}</strong>{' '}
+                    {milestone.durationWeeks && `- ${milestone.durationWeeks} wks`}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {!!payload.risks?.length && (
+            <div className="section">
+              <h4>⚠️ Risks</h4>
+              <ul>
+                {payload.risks?.map((risk: string, index: number) => (
+                  <li key={index}>{risk}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       );
     
     case 'funding':
       return (
         <div className="funding-output">
-          {payload.matches?.length > 0 ? (
+          {payload.matches?.length > 0 && (
             <div className="section">
               <h4>🎯 Matched Funders</h4>
               {payload.matches.map((funder: any, index: number) => (
                 <div key={index} className="funder-match">
                   <div className="funder-header">
                     <strong>{funder.name}</strong>
-                    <span className="score">Score: {Math.round(funder.score * 100)}%</span>
+                    {typeof funder.score === 'number' && (
+                      <span className="score">Score: {Math.round(funder.score * 100)}%</span>
+                    )}
                   </div>
                   <div className="funder-details">
-                    <div><strong>Stage:</strong> {funder.stageFocus}</div>
-                    <div><strong>Geography:</strong> {funder.geography}</div>
-                    <div><strong>Contact:</strong> {funder.contact}</div>
+                    <div><strong>Stage:</strong> {Array.isArray(funder.stageFocus) ? funder.stageFocus.join(', ') : funder.stageFocus}</div>
+                    <div><strong>Geography:</strong> {Array.isArray(funder.geography) ? funder.geography.join(', ') : funder.geography}</div>
+                    <div><strong>Contact:</strong> {isObject(funder.contact) ? JSON.stringify(funder.contact) : funder.contact}</div>
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
+          )}
+
+          {payload.executiveSummary && (
             <div className="section">
-              <h4>📝 Note</h4>
-              <p>{payload.note}</p>
-              <div className="keywords">
-                <strong>Keywords analyzed:</strong> {payload.keywords?.join(', ')}
-              </div>
+              <h4>📝 Executive Summary</h4>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{payload.executiveSummary}</p>
+            </div>
+          )}
+
+          {Array.isArray(payload.immediateOpportunities) && payload.immediateOpportunities.length > 0 && (
+            <div className="section">
+              <h4>⏱️ Immediate Opportunities</h4>
+              <ul>
+                {payload.immediateOpportunities.map((item: string, i: number) => (<li key={i}>{item}</li>))}
+              </ul>
+            </div>
+          )}
+
+          {Array.isArray(payload.rollingOpportunities) && payload.rollingOpportunities.length > 0 && (
+            <div className="section">
+              <h4>🔁 Rolling Opportunities</h4>
+              <ul>
+                {payload.rollingOpportunities.map((item: string, i: number) => (<li key={i}>{item}</li>))}
+              </ul>
+            </div>
+          )}
+
+          {Array.isArray(payload.recommendedNextSteps) && payload.recommendedNextSteps.length > 0 && (
+            <div className="section">
+              <h4>✅ Recommended Next Steps</h4>
+              <ul>
+                {payload.recommendedNextSteps.map((item: string, i: number) => (<li key={i}>{item}</li>))}
+              </ul>
+            </div>
+          )}
+
+          {(payload.keywords?.length > 0) && (
+            <div className="section">
+              <h4>🔎 Keywords</h4>
+              <div className="keywords"><strong>Keywords analyzed:</strong> {payload.keywords.join(', ')}</div>
             </div>
           )}
         </div>
@@ -137,8 +221,11 @@ const formatAgentOutput = (agent: string, payload: any) => {
         <div className="competitor-output">
           <div className="section">
             <h4>🏢 Market Analysis</h4>
-            <p><strong>Industry:</strong> {payload.industry}</p>
-            <p><strong>Analysis Scope:</strong> {payload.analysisDepth}</p>
+            <p><strong>Industry:</strong> {payload.industry || '—'}</p>
+            <p><strong>Analysis Scope:</strong> {payload.analysisScope || payload.analysisDepth || payload.competitorScope || '—'}</p>
+            {payload.marketAnalysisRegion && (
+              <p><strong>Focus:</strong> {payload.marketAnalysisRegion}</p>
+            )}
           </div>
           <div className="section">
             <h4>🏆 Key Competitors</h4>
@@ -148,11 +235,39 @@ const formatAgentOutput = (agent: string, payload: any) => {
                   <strong>{competitor.name}</strong>
                   {competitor.region && <span className="region">({competitor.region})</span>}
                 </div>
-                <div><strong>Differentiator:</strong> {competitor.differentiator}</div>
-                <div><strong>Pricing:</strong> {competitor.pricing}</div>
+                {competitor.differentiator && <div><strong>Differentiator:</strong> {competitor.differentiator}</div>}
+                {competitor.pricing && <div><strong>Pricing:</strong> {competitor.pricing}</div>}
               </div>
             ))}
           </div>
+          {Array.isArray(payload.pricingModels) && payload.pricingModels.length > 0 && (
+            <div className="section">
+              <h4>💵 Pricing Models</h4>
+              <ul>
+                {payload.pricingModels.map((item: any, i: number) => (<li key={i}>{isObject(item) ? JSON.stringify(item) : String(item)}</li>))}
+              </ul>
+            </div>
+          )}
+          {payload.positioning && (
+            <div className="section">
+              <h4>🎯 Positioning</h4>
+              <div>{isObject(payload.positioning) ? JSON.stringify(payload.positioning) : String(payload.positioning)}</div>
+            </div>
+          )}
+          {payload.differentiation && (
+            <div className="section">
+              <h4>✨ Differentiation</h4>
+              <div>{isObject(payload.differentiation) ? JSON.stringify(payload.differentiation) : String(payload.differentiation)}</div>
+            </div>
+          )}
+          {Array.isArray(payload.threatAssessment) && payload.threatAssessment.length > 0 && (
+            <div className="section">
+              <h4>⚠️ Threat Assessment</h4>
+              <ul>
+                {payload.threatAssessment.map((item: any, i: number) => (<li key={i}>{isObject(item) ? JSON.stringify(item) : String(item)}</li>))}
+              </ul>
+            </div>
+          )}
           <div className="section">
             <h4>📊 Monitoring Plan</h4>
             <ul>
@@ -196,9 +311,16 @@ export const AgentOutputs = ({ outputs }: AgentOutputsProps) => {
     return null;
   }
 
-  // Sort outputs to show completed ones first, then running, then pending
+  const statusOrder = { succeeded: 0, running: 1, pending: 2, failed: 3 };
+  const getOrderIndex = (agent: string) => {
+    const idx = AGENT_ORDER.indexOf(agent);
+    return idx === -1 ? AGENT_ORDER.length + 1 : idx;
+  };
+
+  // Sort outputs in a deterministic layout order for the dashboard
   const sortedOutputs = [...outputs].sort((a, b) => {
-    const statusOrder = { succeeded: 0, running: 1, failed: 2, pending: 3 };
+    const agentDiff = getOrderIndex(a.agent) - getOrderIndex(b.agent);
+    if (agentDiff !== 0) return agentDiff;
     return statusOrder[a.status] - statusOrder[b.status];
   });
 

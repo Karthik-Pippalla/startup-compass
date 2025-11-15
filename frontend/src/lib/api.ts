@@ -1,11 +1,15 @@
 import type { CreateJobPayload, Job } from '../types/job';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Ensure base URL always points to the Express '/api' prefix
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
+const API_BASE_URL = RAW_BASE
+  ? (RAW_BASE.endsWith('/api') ? RAW_BASE : `${RAW_BASE}/api`)
+  : '/api';
 
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    const error = new Error(errorBody.message || 'Request failed');
+    const error = new Error(errorBody.message || `Request failed (${response.status})`);
     throw error;
   }
   return response.json();

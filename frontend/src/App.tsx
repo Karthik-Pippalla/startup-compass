@@ -24,6 +24,8 @@ function App() {
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
+  const [questionnaireDismissed, setQuestionnaireDismissed] = useState(false);
+  const [statusAnnouncements, setStatusAnnouncements] = useState({ running: false, completed: false });
 
   // Welcome message effect (runs once when authenticated)
   useEffect(() => {
@@ -70,7 +72,12 @@ Just describe your startup idea and I'll get started!
         const nextJob = await getJob(jobId);
         if (cancelled) return;
         setJob(nextJob);
-        if (nextJob.status === 'collecting_info' && nextJob.questionnaire?.questions?.length > 0) {
+        if (
+          nextJob.status === 'collecting_info' &&
+          nextJob.questionnaire?.questions?.length > 0 &&
+          !showQuestionnaire &&
+          !questionnaireDismissed
+        ) {
           setShowQuestionnaire(true);
         }
         updateMessagesBasedOnJobStatus(nextJob);
@@ -83,7 +90,7 @@ Just describe your startup idea and I'll get started!
     };
     poll();
     return () => { cancelled = true; };
-  }, [user, userProfile, jobId, messages]);
+  }, [user, userProfile, jobId, messages, showQuestionnaire, questionnaireDismissed]);
 
   // Clear session state on logout
   useEffect(() => {
@@ -94,14 +101,21 @@ Just describe your startup idea and I'll get started!
       setShowQuestionnaire(false);
       setError(null);
       setInputMessage('');
+      setStatusAnnouncements({ running: false, completed: false });
     }
   }, [user]);
 
+  useEffect(() => {
+    setStatusAnnouncements({ running: false, completed: false });
+  }, [jobId]);
+
   const updateMessagesBasedOnJobStatus = (currentJob: Job) => {
-    if (currentJob.status === 'running' && !messages.some(m => m.content.includes('analyzing your idea'))) {
+    if (currentJob.status === 'running' && !statusAnnouncements.running) {
       addMessage('assistant', '🚀 Great! I\'m now analyzing your idea with my specialized AI agents running in parallel:\n\n📈 **Marketing Agent** - Analyzing market positioning and go-to-market strategy\n💻 **Technical Agent** - Planning architecture and development roadmap\n💰 **Funding Agent** - Matching with relevant investors\n🏆 **Competitor Agent** - Researching competitive landscape\n\nResults will appear below as each agent completes its analysis...');
-    } else if (currentJob.status === 'completed' && !messages.some(m => m.content.includes('analysis complete'))) {
+      setStatusAnnouncements((prev) => ({ ...prev, running: true }));
+    } else if (currentJob.status === 'completed' && !statusAnnouncements.completed) {
       addMessage('assistant', '✅ **Analysis Complete!** All agents have finished their analysis. You can see the detailed insights from each agent below. The final checklist agent has also created a comprehensive project timeline based on all the findings.');
+      setStatusAnnouncements((prev) => ({ ...prev, completed: true }));
     }
   };
 
@@ -386,14 +400,14 @@ Just describe your startup idea and I'll get started!
 
       {/* Questionnaire Modal */}
       {showQuestionnaire && job?.questionnaire?.questions && (
-        <div className="modal-overlay" onClick={() => setShowQuestionnaire(false)}>
+        <div className="modal-overlay" onClick={() => { setShowQuestionnaire(false); setQuestionnaireDismissed(true); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🤔 I need some more details</h2>
               <p>Your idea sounds interesting! To provide you with the most accurate analysis, I need a few more details:</p>
               <button 
                 className="modal-close" 
-                onClick={() => setShowQuestionnaire(false)}
+                onClick={() => { setShowQuestionnaire(false); setQuestionnaireDismissed(true); }}
                 type="button"
               >
                 ×
@@ -416,14 +430,14 @@ Just describe your startup idea and I'll get started!
                     <label className="modal-label">
                       <span className="modal-label-text">
                         {question.label}
-                        <span className="required">*</span>
+                        {/* removed required star; questions are optional */}
                       </span>
                       {question.type === 'textarea' ? (
                         <textarea
                           name={question.key}
                           className="modal-textarea"
                           placeholder={question.helpText || ''}
-                          required
+                          /* optional: no required */
                         />
                       ) : (
                         <input
@@ -431,7 +445,7 @@ Just describe your startup idea and I'll get started!
                           type={question.type === 'number' ? 'number' : 'text'}
                           className="modal-input"
                           placeholder={question.helpText || ''}
-                          required
+                          /* optional: no required */
                         />
                       )}
                       {question.helpText && (
@@ -445,7 +459,7 @@ Just describe your startup idea and I'll get started!
               <div className="modal-actions">
                 <button 
                   type="button" 
-                  onClick={() => setShowQuestionnaire(false)}
+                  onClick={() => { setShowQuestionnaire(false); setQuestionnaireDismissed(true); }}
                   className="modal-button modal-button-secondary"
                 >
                   Cancel
@@ -462,17 +476,11 @@ Just describe your startup idea and I'll get started!
         </div>
       )}
 
-      {/* Results Section - Only show when job is completed */}
-      {job?.status === 'completed' && (
-        <div className="results-section">
-          <div className="results-grid">
-            <div className="timeline-section">
-              <Timeline plan={job?.timeline} />
-            </div>
-            <div className="agents-section">
-              <AgentOutputs outputs={job?.agentOutputs || []} />
-            </div>
-          </div>
+      {/* Agent Outputs Panel shown once agents start (running) and continues after completion */}
+      {job && jobId && (
+        <div className="analysis-section">
+          <AgentOutputs outputs={job.agentOutputs || []} />
+          {job.status === 'completed' && <Timeline plan={job.timeline} />}
         </div>
       )}
 

@@ -17,6 +17,26 @@ const applyValidation = async (job) => {
   job.questionnaire.questions = validationResult.questions;
   job.missingFields = validationResult.missingFields;
   job.agentPrompts = validationResult.agentPrompts; // Store generated prompts
+
+  // Ensure answers remains a Map (handles legacy docs saved as plain objects)
+  if (job.questionnaire) {
+    const currentAnswers = job.questionnaire.answers;
+    if (currentAnswers && !(currentAnswers instanceof Map)) {
+      try {
+        job.questionnaire.answers = new Map(Object.entries(currentAnswers));
+      } catch {
+        job.questionnaire.answers = new Map();
+      }
+      job.markModified('questionnaire.answers');
+    }
+  }
+
+  // Seed agent output placeholders when validation complete and not already seeded
+  if (validationResult.status === 'complete' && (!job.agentOutputs || job.agentOutputs.length === 0)) {
+    const AGENTS = ['marketing', 'developer', 'funding', 'competitor', 'checklist'];
+    job.agentOutputs = AGENTS.map(a => ({ agent: a, status: 'pending' }));
+  }
+
   job.status =
     validationResult.status === 'complete' ? (job.status === 'running' ? 'running' : 'ready') : 'collecting_info';
   job.history.push({
@@ -25,6 +45,7 @@ const applyValidation = async (job) => {
         ? 'Validation complete - Agent prompts generated'
         : `Validation needs info: ${validationResult.missingFields.join(', ')}`,
   });
+
   await job.save();
   return validationResult.status;
 };
@@ -52,7 +73,7 @@ const createJob = async (req, res, next) => {
       originalPrompt: { summary: prompt, metadata },
       validatedBrief: answers,
       questionnaire: {
-        answers,
+        answers: new Map(Object.entries(answers || {})), // ensure Map type
       },
       status: 'pending',
     });
@@ -89,9 +110,20 @@ const submitAnswers = async (req, res, next) => {
     }
 
     const answers = mapBodyToAnswers(req.body.answers);
-    const currentAnswers = job.questionnaire.answers || {};
-    job.questionnaire.answers = { ...currentAnswers, ...answers };
-    job.validatedBrief = { ...job.validatedBrief, ...answers };
+
+    // Safely merge into mongoose Map or plain object
+    if (job.questionnaire && job.questionnaire.answers instanceof Map) {
+      Object.entries(answers).forEach(([key, value]) => {
+        job.questionnaire.answers.set(key, value);
+      });
+      job.markModified('questionnaire.answers');
+    } else {
+      const current = (job.questionnaire && job.questionnaire.answers) || {};
+      job.questionnaire.answers = { ...current, ...answers };
+    }
+
+    // Also update validatedBrief (plain object)
+    job.validatedBrief = { ...(job.validatedBrief || {}), ...answers };
 
     const validationStatus = await applyValidation(job);
 

@@ -182,7 +182,11 @@ class ValidationAgent extends BaseAgent {
   async execute(jobContext) {
     const answersMap = jobContext?.questionnaire?.answers || new Map();
     const answersObject = answersMap instanceof Map ? Object.fromEntries(answersMap.entries()) : answersMap;
-    const originalPrompt = jobContext?.originalPrompt || '';
+    // Fix: originalPrompt may be an object like { summary: string }
+    const originalPromptRaw = jobContext?.originalPrompt;
+    const originalPrompt = typeof originalPromptRaw === 'string'
+      ? originalPromptRaw
+      : (originalPromptRaw && typeof originalPromptRaw === 'object' ? originalPromptRaw.summary || '' : '');
 
     // Extract info from the original prompt
     const extractedInfo = extractInfoFromPrompt(originalPrompt);
@@ -237,7 +241,8 @@ class ValidationAgent extends BaseAgent {
     if (missingBasicFields.length === 0) {
       agentPrompts.marketing = this.generateMarketingPrompt(completeBrief);
       agentPrompts.funding = this.generateFundingPrompt(completeBrief);
-      agentPrompts.technical = this.generateTechnicalPrompt(completeBrief);
+      agentPrompts.developer = this.generateTechnicalPrompt(completeBrief); // renamed
+      agentPrompts.technical = agentPrompts.developer; // backward compatibility
       agentPrompts.competitor = this.generateCompetitorPrompt(completeBrief);
     }
 

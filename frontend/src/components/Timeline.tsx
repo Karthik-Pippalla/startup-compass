@@ -10,7 +10,7 @@ export const Timeline = ({ plan }: TimelineProps) => {
   }
 
   return (
-    <div className="card">
+    <div className="card timeline-card">
       <h2>Checklist & Timeline</h2>
       <ol className="timeline">
         {plan.phases.map((phase) => (
