@@ -21,10 +21,25 @@ export interface Questionnaire {
   answers: Record<string, string>;
 }
 
+export interface HumanizedAgentSummary {
+  summary?: string;
+  highlights?: string[];
+  recommendations?: string[];
+  nextSteps?: string[];
+  model?: string;
+  generatedAt?: string;
+}
+
+export interface AgentPayload extends Record<string, unknown> {
+  raw?: unknown;
+  humanized?: HumanizedAgentSummary;
+  humanizedError?: string;
+}
+
 export interface AgentOutput {
   agent: string;
   status: 'pending' | 'running' | 'succeeded' | 'failed';
-  payload?: Record<string, unknown>;
+  payload?: AgentPayload;
   error?: unknown;
   startedAt?: string;
   finishedAt?: string;

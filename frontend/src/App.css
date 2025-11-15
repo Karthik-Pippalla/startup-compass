@@ -1264,6 +1264,101 @@ button:disabled {
   gap: 0.75rem;
 }
 
+.agent-output-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.humanized-block {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 15px 30px rgba(2, 6, 23, 0.4);
+}
+
+.humanized-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: #f8fafc;
+}
+
+.humanized-meta {
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.humanized-summary {
+  margin: 0.4rem 0 0.85rem;
+  font-size: 1rem;
+  color: rgba(248, 250, 252, 0.95);
+  line-height: 1.6;
+}
+
+.humanized-section {
+  margin: 0 0 0.75rem 0;
+}
+
+.humanized-section h4 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.9);
+}
+
+.humanized-section ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+  color: rgba(241, 245, 249, 0.95);
+}
+
+.humanized-section li {
+  margin-bottom: 0.35rem;
+  line-height: 1.45;
+}
+
+.humanized-placeholder {
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  border-radius: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: rgba(15, 23, 42, 0.35);
+  color: rgba(248, 250, 252, 0.85);
+  font-size: 0.9rem;
+}
+
+.humanized-error-banner {
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: #ffedd5;
+  font-size: 0.85rem;
+}
+
+.raw-output-section {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.85rem;
+  background: rgba(2, 6, 23, 0.55);
+  padding: 0.5rem 0.75rem;
+}
+
+.raw-output-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.9);
+  margin: 0 0 0.2rem 0;
+}
+
+.raw-output-section[open] summary {
+  margin-bottom: 0.75rem;
+}
+
 .raw-output-block {
   margin: 0;
   background: rgba(2, 6, 23, 0.7);

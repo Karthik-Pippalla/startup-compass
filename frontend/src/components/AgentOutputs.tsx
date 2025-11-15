@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AgentOutput } from '../types/job';
+import type { AgentOutput, HumanizedAgentSummary } from '../types/job';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -26,6 +26,79 @@ const getRawPayload = (payload?: Record<string, unknown>): unknown => {
 const getPayloadError = (payload?: Record<string, unknown>): unknown => {
   if (!payload) return undefined;
   return (payload as { error?: unknown }).error;
+};
+
+const getHumanizedPayload = (payload?: Record<string, unknown>): HumanizedAgentSummary | undefined => {
+  if (!payload) return undefined;
+  const humanized = (payload as { humanized?: HumanizedAgentSummary }).humanized;
+  if (!humanized) return undefined;
+
+  const normalizeList = (items?: string[]) =>
+    Array.isArray(items) ? items.map((item) => item?.trim()).filter((item): item is string => !!item) : undefined;
+
+  const summary = typeof humanized.summary === 'string' ? humanized.summary.trim() : '';
+  const highlights = normalizeList(humanized.highlights);
+  const recommendations = normalizeList(humanized.recommendations);
+  const nextSteps = normalizeList(humanized.nextSteps);
+
+  if (!summary && !highlights?.length && !recommendations?.length && !nextSteps?.length) {
+    return undefined;
+  }
+
+  return {
+    summary,
+    highlights,
+    recommendations,
+    nextSteps,
+    model: humanized.model,
+    generatedAt: humanized.generatedAt,
+  };
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+};
+
+const renderHumanizedSection = (title: string, items?: string[]) => {
+  if (!items || items.length === 0) {
+    return null;
+  }
+  return (
+    <div className="humanized-section">
+      <h4>{title}</h4>
+      <ul>
+        {items.map((item, idx) => (
+          <li key={`${title}-${idx}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const renderHumanizedBlock = (agent: string, humanized: HumanizedAgentSummary) => {
+  const agentLabel = agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : 'Agent';
+  const metaParts = [
+    humanized.model ? `Model: ${humanized.model}` : null,
+    humanized.generatedAt ? formatDate(humanized.generatedAt) : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="humanized-block">
+      <div className="humanized-heading">
+        <span>AI summary for {agentLabel}</span>
+        {metaParts.length > 0 && <span className="humanized-meta">{metaParts.join(' • ')}</span>}
+      </div>
+      {humanized.summary && <p className="humanized-summary">{humanized.summary}</p>}
+      {renderHumanizedSection('Highlights', humanized.highlights)}
+      {renderHumanizedSection('Recommendations', humanized.recommendations)}
+      {renderHumanizedSection('Next steps', humanized.nextSteps)}
+    </div>
+  );
 };
 
 const renderRawBlock = (raw: unknown): ReactNode => {
@@ -78,11 +151,34 @@ const formatAgentOutput = (_agent: string, payload: Record<string, unknown> | un
 
   const raw = getRawPayload(payload);
   const error = getPayloadError(payload);
+  const humanized = getHumanizedPayload(payload);
+  const humanizedError =
+    typeof (payload as { humanizedError?: string }).humanizedError === 'string'
+      ? (payload as { humanizedError?: string }).humanizedError
+      : undefined;
   const hasError = error !== undefined && error !== null;
 
   return (
-    <div className="raw-output-wrapper">
-      {renderRawBlock(raw)}
+    <div className="agent-output-stack">
+      {humanized ? (
+        renderHumanizedBlock(_agent, humanized)
+      ) : (
+        <div className="humanized-placeholder">
+          <p>Working on a friendly summary… raw data is still available below.</p>
+        </div>
+      )}
+
+      {humanizedError && (
+        <div className="humanized-error-banner">
+          <strong>Summary note:</strong> {humanizedError}
+        </div>
+      )}
+
+      <details className="raw-output-section">
+        <summary>View raw agent output</summary>
+        {renderRawBlock(raw)}
+      </details>
+
       {hasError && (
         <div className="raw-error">
           <strong>Error from workflow:</strong>

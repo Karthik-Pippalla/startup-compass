@@ -5,6 +5,7 @@ const { developerAgent } = require('./developerAgent');
 const { fundingAgent } = require('./fundingAgent');
 const { competitorAgent } = require('./competitorAgent');
 const { checklistAgent } = require('./checklistAgent');
+const { humanizeAgentPayload } = require('../ai/humanizeAgentPayload');
 
 // Agent execution timeout (ms)
 const AGENT_TIMEOUT_MS = parseInt(process.env.AGENT_TIMEOUT_MS || '45000', 10);
@@ -115,24 +116,47 @@ const runAgentWithLogging = async (jobDoc, agentInstance, agentContext) => {
       agentInstance.name
     );
 
-    debug('Agent payload received', { agent: agentInstance.name, jobId, payloadPreview: safeStringify(payload, 1200) });
+    let payloadForStorage = payload;
+    let humanizedError;
+    try {
+      const humanized = await humanizeAgentPayload(agentInstance.name, payload);
+      if (humanized) {
+        const basePayload =
+          payload && typeof payload === 'object' && !Array.isArray(payload)
+            ? { ...payload }
+            : { value: payload };
+        basePayload.humanized = humanized;
+        payloadForStorage = basePayload;
+      }
+    } catch (err) {
+      humanizedError = err.message || String(err);
+      const basePayload =
+        payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? { ...payload }
+          : { value: payload };
+      basePayload.humanizedError = humanizedError;
+      payloadForStorage = basePayload;
+      debug('Humanized summary failed', { agent: agentInstance.name, jobId, error: humanizedError });
+    }
+
+    debug('Agent payload received', { agent: agentInstance.name, jobId, payloadPreview: safeStringify(payloadForStorage, 1200) });
 
     const finishedAt = new Date();
     await updateAgentOutputs(jobId, agentInstance.name, {
       status: 'succeeded',
-      payload,
+      payload: payloadForStorage,
       startedAt,
       finishedAt,
     });
 
     run.status = 'succeeded';
     run.durationMs = finishedAt.getTime() - startedAt.getTime();
-    run.response = payload;
+    run.response = payloadForStorage;
     await run.save();
 
     console.timeEnd(label);
     debug('Agent finished', { agent: agentInstance.name, jobId, durationMs: run.durationMs });
-    return payload;
+    return payloadForStorage;
   } catch (error) {
     console.timeEnd(label);
     debug('Agent failed', { agent: agentInstance.name, jobId, error: error?.message || String(error) });
