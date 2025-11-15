@@ -15,7 +15,8 @@ class CompetitorAgent extends BaseAgent {
   async execute(jobContext) {
     const brief = jobContext.validatedBrief || {};
     const specificPrompt = jobContext.specificPrompt;
-    const directPrompt = jobContext.competitorPrompt;
+    const forwardedPrompt = typeof specificPrompt === 'string' && specificPrompt.length ? specificPrompt : null;
+    const directPrompt = forwardedPrompt || jobContext.competitorPrompt;
 
     const industry = brief.industry || 'general market';
     const features = Array.isArray(brief.keyFeatures) ? brief.keyFeatures : [];

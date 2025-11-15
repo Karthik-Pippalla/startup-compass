@@ -1,4 +1,4 @@
-import type { CreateJobPayload, Job } from '../types/job';
+import type { CollabrationRecord, CollabrationResponse, CreateJobPayload, Job } from '../types/job';
 
 // Ensure base URL always points to the Express '/api' prefix
 const RAW_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
@@ -38,5 +38,22 @@ export const submitAnswers = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ answers }),
   });
+  return handleResponse(response);
+};
+
+export const submitcollabration = async (
+  jobId: string,
+  payload: { userId: string },
+): Promise<CollabrationResponse> => {
+  const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/collabrations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(response);
+};
+
+export const getCollabrations = async (): Promise<CollabrationRecord[]> => {
+  const response = await fetch(`${API_BASE_URL}/jobs/collabrations`);
   return handleResponse(response);
 };

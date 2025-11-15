@@ -11,8 +11,9 @@ class MarketingAgent extends BaseAgent {
     const brief = jobContext.validatedBrief || {};
     const specificPrompt = jobContext.specificPrompt;
 
-    // If a direct marketing prompt is provided, use that, else construct from brief
-    const directPrompt = jobContext.marketingPrompt;
+    // If a prompt was forwarded from validation use it as-is, otherwise fall back to direct or constructed prompts
+    const forwardedPrompt = typeof specificPrompt === 'string' && specificPrompt.length ? specificPrompt : null;
+    const directPrompt = forwardedPrompt || jobContext.marketingPrompt;
     const constructedPrompt = [
       `Industry: ${brief.industry || 'emerging market'}`,
       `Product: ${brief.productDescription || 'innovative solution'}`,

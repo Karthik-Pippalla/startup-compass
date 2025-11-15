@@ -47,13 +47,17 @@ class FundingAgent extends BaseAgent {
     ].filter(Boolean);
     const idea = ideaParts.join(' | ');
 
+    const forwardedPrompt = typeof specificPrompt === 'string' && specificPrompt.length ? specificPrompt : null;
+    const promptForWorkflow = forwardedPrompt || idea;
+
     let workflowResult;
     try {
-      workflowResult = await executeFundingWorkflow(idea);
+      workflowResult = await executeFundingWorkflow(promptForWorkflow);
     } catch (err) {
       return {
         matches: [],
         error: `Lamatic workflow failed: ${err.message}`,
+        promptUsed: promptForWorkflow,
         specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
         executiveSummary: '',
         immediateOpportunities: [],
@@ -89,6 +93,7 @@ class FundingAgent extends BaseAgent {
       matches,
       lamaticStatus: workflowResult.status,
       raw: workflowResult.raw,
+      promptUsed: promptForWorkflow,
       specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
       executiveSummary: summarySections.executiveSummary,
       immediateOpportunities: summarySections.immediateOpportunities,

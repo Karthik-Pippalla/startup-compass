@@ -1,4 +1,5 @@
 const Job = require('../models/Job');
+const Collabration = require('../models/Collabration');
 const { validationAgent } = require('../services/agents/validationAgent');
 const { runStrategicAgents } = require('../services/agents/orchestrator');
 
@@ -137,8 +138,70 @@ const submitAnswers = async (req, res, next) => {
   }
 };
 
+const submitcollabration = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required to submit a collabration' });
+    }
+
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    if (job.status !== 'completed') {
+      return res.status(400).json({ message: 'Job must be completed before submitting a collabration' });
+    }
+
+    const existing = await Collabration.findOne({ jobId: job._id, userId });
+    if (existing) {
+      return res.json({ collabration: existing, alreadySubmitted: true });
+    }
+
+    const collabration = await Collabration.create({
+      jobId: job._id,
+      userId,
+      originalPrompt: job.originalPrompt?.summary,
+      validatedBrief: job.validatedBrief,
+      agentOutputs: job.agentOutputs,
+      timeline: job.timeline,
+    });
+
+    return res.status(201).json({ collabration, alreadySubmitted: false });
+  } catch (error) {
+    if (error.code === 11000) {
+      try {
+        const fallBack = await Collabration.findOne({ jobId: req.params.jobId, userId: req.body.userId });
+        if (fallBack) {
+          return res.json({ collabration: fallBack, alreadySubmitted: true });
+        }
+      } catch (findError) {
+        // eslint-disable-next-line no-console
+        console.error('Error fetching duplicate collabration', findError);
+      }
+    }
+    next(error);
+  }
+};
+
+const listCollabrations = async (req, res, next) => {
+  try {
+    const collabrations = await Collabration.find()
+      .sort({ createdAt: -1 })
+      .populate('userId', 'firstName lastName displayName email phoneNumber');
+    res.json(collabrations);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createJob,
   getJob,
   submitAnswers,
+  submitcollabration,
+  listCollabrations,
 };

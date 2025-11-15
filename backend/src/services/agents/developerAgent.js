@@ -23,9 +23,12 @@ class DeveloperAgent extends BaseAgent {
       `Vision: ${visionSentence}`,
     ].filter(Boolean).join(' | ');
 
+    const forwardedPrompt = typeof specificPrompt === 'string' && specificPrompt.length ? specificPrompt : null;
+    const lamaticPrompt = forwardedPrompt || parts;
+
     let result;
     try {
-      result = await executeDeveloperWorkflow(parts);
+      result = await executeDeveloperWorkflow(lamaticPrompt);
     } catch (err) {
       return {
         stack: {},
@@ -102,6 +105,7 @@ class DeveloperAgent extends BaseAgent {
       visionSentence,
       lamaticStatus: result.status,
       raw: result.raw,
+      promptUsed: lamaticPrompt,
       specificPrompt: specificPrompt ? 'Used enhanced validation prompt' : 'Used default analysis',
     };
   }

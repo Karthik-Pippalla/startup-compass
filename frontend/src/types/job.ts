@@ -59,3 +59,29 @@ export interface CreateJobPayload {
   metadata?: Record<string, unknown>;
   brief?: Record<string, unknown>;
 }
+
+export interface CollabrationOwner {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
+export interface CollabrationRecord {
+  _id: string;
+  jobId: string;
+  userId: string | CollabrationOwner;
+  originalPrompt?: string;
+  validatedBrief?: Record<string, unknown>;
+  agentOutputs: AgentOutput[];
+  timeline?: TimelinePlan;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollabrationResponse {
+  collabration: CollabrationRecord;
+  alreadySubmitted: boolean;
+}

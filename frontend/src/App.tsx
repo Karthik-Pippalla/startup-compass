@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import './App.css';
 import { AgentOutputs } from './components/AgentOutputs';
 import { Timeline } from './components/Timeline';
-import { createJob, getJob, submitAnswers } from './lib/api';
-import type { Job } from './types/job';
+import { createJob, getJob, submitAnswers, submitcollabration, getCollabrations } from './lib/api';
+import type { Job, CollabrationRecord, CollabrationOwner } from './types/job';
 import { useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { User, LogOut } from 'lucide-react';
@@ -13,6 +13,14 @@ type Message = {
   type: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+};
+
+const JOB_STATUS_LABELS: Record<string, string> = {
+  collecting_info: 'Collecting info',
+  running: 'Analyzing',
+  completed: 'Complete',
+  pending: 'Pending',
+  failed: 'Failed',
 };
 
 function App() {
@@ -26,6 +34,12 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [questionnaireDismissed, setQuestionnaireDismissed] = useState(false);
   const [statusAnnouncements, setStatusAnnouncements] = useState({ running: false, completed: false });
+  const [isSubmittingcollabration, setIsSubmittingcollabration] = useState(false);
+  const [collabrationSubmitted, setcollabrationSubmitted] = useState(false);
+  const [showCollabrationsModal, setShowCollabrationsModal] = useState(false);
+  const [collabrations, setCollabrations] = useState<CollabrationRecord[]>([]);
+  const [collabrationsLoading, setCollabrationsLoading] = useState(false);
+  const [collabrationsError, setCollabrationsError] = useState<string | null>(null);
 
   // Welcome message effect (runs once when authenticated)
   useEffect(() => {
@@ -107,6 +121,8 @@ Just describe your startup idea and I'll get started!
 
   useEffect(() => {
     setStatusAnnouncements({ running: false, completed: false });
+    setcollabrationSubmitted(false);
+    setIsSubmittingcollabration(false);
   }, [jobId]);
 
   const updateMessagesBasedOnJobStatus = (currentJob: Job) => {
@@ -133,6 +149,7 @@ Just describe your startup idea and I'll get started!
       const newJob = await createJob({ prompt, brief: {} });
       setJob(newJob);
       setJobId(newJob._id);
+      setcollabrationSubmitted(false);
       addMessage('assistant', 'Let me validate your idea and see if I need any additional information...');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to process your request';
@@ -165,6 +182,124 @@ Just describe your startup idea and I'll get started!
     }
   };
 
+  const handlecollabrationSubmit = async () => {
+    if (!jobId || !userProfile?.id) return;
+    setIsSubmittingcollabration(true);
+    setError(null);
+    try {
+      const response = await submitcollabration(jobId, { userId: userProfile.id });
+      setcollabrationSubmitted(true);
+      if (!response.alreadySubmitted) {
+        addMessage('assistant', '🙌 Thanks! Your analysis has been saved as a community collabration.');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to submit collabration';
+      setError(message);
+    } finally {
+      setIsSubmittingcollabration(false);
+    }
+  };
+
+  const fetchCollabrations = async () => {
+    setCollabrationsLoading(true);
+    setCollabrationsError(null);
+    try {
+      const data = await getCollabrations();
+      setCollabrations(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to load collabrations';
+      setCollabrationsError(message);
+    } finally {
+      setCollabrationsLoading(false);
+    }
+  };
+
+  const handleCollabrationPanelOpen = async () => {
+    setShowCollabrationsModal(true);
+    if (collabrations.length === 0 && !collabrationsLoading) {
+      fetchCollabrations();
+    }
+  };
+
+  const closeCollabrationsModal = () => {
+    setShowCollabrationsModal(false);
+  };
+
+  const resolveOwnerName = (owner?: CollabrationOwner | string) => {
+    if (!owner) return 'Founder';
+    if (typeof owner === 'string') return 'Founder';
+    const composed = `${owner.firstName || ''} ${owner.lastName || ''}`.trim();
+    return owner.displayName || composed || 'Founder';
+  };
+
+  const collabrationModal = showCollabrationsModal ? (
+    <div className="modal-overlay" onClick={closeCollabrationsModal}>
+      <div className="collabration-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Community Collabrations</h2>
+          <p>See how other founders described their ideas and the insights they received.</p>
+          <button 
+            className="modal-close" 
+            onClick={closeCollabrationsModal}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <div className="collabration-content">
+          {collabrationsLoading && <div className="collabration-loading">Loading collabrations...</div>}
+          {collabrationsError && <div className="collabration-error">{collabrationsError}</div>}
+          {!collabrationsLoading && !collabrationsError && (
+            <div className="collabration-grid">
+              {collabrations.length === 0 && (
+                <div className="collabration-empty">No collabrations yet. Submit yours to inspire others!</div>
+              )}
+              {collabrations.map((entry) => {
+                const owner = typeof entry.userId === 'object' ? entry.userId as CollabrationOwner : undefined;
+                const agentCount = entry.agentOutputs?.length || 0;
+                return (
+                  <div key={entry._id} className="collabration-card">
+                    <div className="collabration-card-header">
+                      <div>
+                        <p className="eyebrow">Founder</p>
+                        <h3>{resolveOwnerName(owner)}</h3>
+                        <p className="collabration-contact">
+                          {owner?.email || 'No email provided'}
+                          {owner?.phoneNumber ? ` • ${owner.phoneNumber}` : ''}
+                        </p>
+                      </div>
+                      <span className="collabration-date">{new Date(entry.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="collabration-body">
+                      <p className="collabration-prompt">{entry.originalPrompt || 'No prompt provided'}</p>
+                      <div className="collabration-meta">
+                        <span>{agentCount} agent insights</span>
+                        {entry.timeline?.phases && <span>{entry.timeline.phases.length} timeline phases</span>}
+                      </div>
+                    </div>
+                    {agentCount > 0 && (
+                      <div className="collabration-agents">
+                        {entry.agentOutputs.slice(0, 3).map((agent) => (
+                          <div key={agent.agent} className="collabration-agent-pill">
+                            <strong>{agent.agent}</strong>
+                            <span>{agent.status}</span>
+                          </div>
+                        ))}
+                        {agentCount > 3 && (
+                          <div className="collabration-agent-pill">+{agentCount - 3} more</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // After hooks: conditional rendering
   if (loading) {
     return (
@@ -184,6 +319,7 @@ Just describe your startup idea and I'll get started!
   // Show landing page if no job has been started
   if (!jobId) {
     return (
+      <>
       <div style={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #ea580c 100%)',
@@ -209,6 +345,21 @@ Just describe your startup idea and I'll get started!
           borderRadius: '2rem',
           padding: '0.5rem 1rem',
         }}>
+          <button
+            onClick={handleCollabrationPanelOpen}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: '1rem',
+              padding: '0.35rem 0.85rem',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+            }}
+          >
+            Collabration
+          </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <User size={20} />
             <span style={{ fontSize: '0.9rem' }}>{userProfile.firstName}</span>
@@ -299,42 +450,36 @@ Just describe your startup idea and I'll get started!
           </div>
         </form>
       </div>
+      {collabrationModal}
+      </>
     );
   }
 
   return (
     <div className="chat-app">
-      <header className="chat-header">
+      <div className="chat-background-glow" aria-hidden="true" />
+      <header className="chat-header glass-panel">
         <div>
-          <h1>🧭 Startup Compass</h1>
+          <p className="eyebrow">Startup Compass</p>
+          <h1>Build something remarkable</h1>
           <p>AI-powered startup validation and planning</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
-            background: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '2rem',
-          }}>
+        <div className="session-actions">
+          <button
+            type="button"
+            className="collabrate-link"
+            onClick={handleCollabrationPanelOpen}
+          >
+            Collaboration
+          </button>
+          <div className="user-pill">
             <User size={20} />
             <span>{userProfile.firstName}</span>
           </div>
           <button
             onClick={logout}
-            style={{
-              background: '#ef4444',
-              border: 'none',
-              borderRadius: '0.5rem',
-              padding: '0.5rem 1rem',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.9rem',
-            }}
+            className="logout-button"
+            type="button"
           >
             <LogOut size={16} />
             Logout
@@ -342,60 +487,118 @@ Just describe your startup idea and I'll get started!
         </div>
       </header>
 
-      <div className="chat-container">
-        {/* Chat Messages */}
-        <div className="chat-messages">
-          {messages.map(message => (
-            <div key={message.id} className={`message ${message.type}`}>
-              <div className="message-content">
-                {message.content}
-              </div>
-              <div className="message-time">
-                {message.timestamp.toLocaleTimeString()}
-              </div>
+      <div className="chat-layout">
+        <section className="chat-panel glass-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Conversation</p>
+              <h2>Idea Workshop</h2>
             </div>
-          ))}
-          {isLoading && (
-            <div className="message assistant">
-              <div className="message-content">
-                <div className="typing-indicator">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+            {job?.status && (
+              <span className={`status-chip status-${job.status}`}>
+                {JOB_STATUS_LABELS[job.status] || job.status.replace(/_/g, ' ')}
+              </span>
+            )}
+          </div>
+
+          <div className="chat-messages">
+            {messages.map(message => (
+              <div key={message.id} className={`message ${message.type}`}>
+                <div className="message-content">
+                  {message.content}
+                </div>
+                <div className="message-time">
+                  {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+            {isLoading && (
+              <div className="message assistant">
+                <div className="message-content">
+                  <div className="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
-        {/* Chat Input */}
-        <div className="chat-input-container">
-          <form onSubmit={handleInputSubmit} className="chat-input-form">
-            <div className="chat-input-wrapper">
-              <textarea
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleInputSubmit(e);
-                  }
-                }}
-                placeholder="Continue the conversation..."
-                disabled={isLoading}
-                className="chat-input"
-                rows={1}
-              />
-              <button 
-                type="submit" 
-                disabled={!inputMessage.trim() || isLoading}
-                className="chat-send-button"
-              >
-                Send
-              </button>
+          <div className="chat-input-container">
+            <form onSubmit={handleInputSubmit} className="chat-input-form">
+              <div className="chat-input-wrapper">
+                <textarea
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleInputSubmit(e);
+                    }
+                  }}
+                  placeholder="Describe your next move..."
+                  disabled={isLoading}
+                  className="chat-input"
+                  rows={1}
+                />
+                <button 
+                  type="submit" 
+                  disabled={!inputMessage.trim() || isLoading}
+                  className="chat-send-button"
+                >
+                  Send
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        {job && jobId && (
+          <section className="agent-panel glass-panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Specialist Agents</p>
+                <h2>Insight Board</h2>
+              </div>
+              <p className="panel-subtitle">
+                Insights stream in live as each agent shares results.
+              </p>
             </div>
-          </form>
-        </div>
+
+            {job.agentOutputs?.length ? (
+              <AgentOutputs outputs={job.agentOutputs || []} />
+            ) : (
+              <div className="panel-placeholder">
+                <p>The marketing, product, funding, and competitor agents will populate here once your idea is processing.</p>
+              </div>
+            )}
+
+            {job.status === 'completed' && (
+              <>
+                <div className="timeline-shell">
+                  <Timeline plan={job.timeline} />
+                </div>
+                <div className="collabration-section">
+                  {collabrationSubmitted ? (
+                    <div className="collabration-success">
+                      ✅ Your collabration has been captured. Thank you for sharing your insights!
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="collabration-button"
+                      onClick={handlecollabrationSubmit}
+                      disabled={isSubmittingcollabration || !userProfile?.id}
+                    >
+                      {isSubmittingcollabration ? 'Submitting...' : 'Submit for Collabration'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        )}
       </div>
 
       {/* Questionnaire Modal */}
@@ -476,13 +679,7 @@ Just describe your startup idea and I'll get started!
         </div>
       )}
 
-      {/* Agent Outputs Panel shown once agents start (running) and continues after completion */}
-      {job && jobId && (
-        <div className="analysis-section">
-          <AgentOutputs outputs={job.agentOutputs || []} />
-          {job.status === 'completed' && <Timeline plan={job.timeline} />}
-        </div>
-      )}
+      {collabrationModal}
 
       {error && <div className="error-toast">{error}</div>}
     </div>
