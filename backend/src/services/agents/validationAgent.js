@@ -41,7 +41,7 @@ class ValidationAgent extends BaseAgent {
 
     const agentPrompts = {};
     if (originalPrompt) {
-      ['marketing', 'developer', 'funding', 'competitor'].forEach((agent) => {
+      ['marketing', 'developer', 'funding'].forEach((agent) => {
         agentPrompts[agent] = originalPrompt;
       });
       agentPrompts.technical = originalPrompt; // maintain backward compatibility

@@ -30,10 +30,27 @@ export interface HumanizedAgentSummary {
   generatedAt?: string;
 }
 
+export interface DemographicChartSegment {
+  label: string;
+  value: number;
+  formattedValue?: string;
+}
+
+export interface DemographicChart {
+  title: string;
+  type: 'pie' | 'bar';
+  metric?: string;
+  description?: string;
+  segments: DemographicChartSegment[];
+}
+
 export interface AgentPayload extends Record<string, unknown> {
   raw?: unknown;
   humanized?: HumanizedAgentSummary;
   humanizedError?: string;
+  demographicSummary?: string;
+  demographicPersona?: string;
+  demographicCharts?: Record<string, DemographicChart>;
 }
 
 export interface AgentOutput {

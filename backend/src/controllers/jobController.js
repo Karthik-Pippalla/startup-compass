@@ -35,7 +35,7 @@ const applyValidation = async (job) => {
 
   // Seed agent output placeholders when validation complete and not already seeded
   if (validationResult.status === 'complete' && (!job.agentOutputs || job.agentOutputs.length === 0)) {
-    const AGENTS = ['marketing', 'developer', 'funding', 'competitor', 'checklist'];
+    const AGENTS = ['marketing', 'developer', 'funding', 'checklist'];
     job.agentOutputs = AGENTS.map(a => ({ agent: a, status: 'pending' }));
   }
 

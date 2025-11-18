@@ -1,8 +1,20 @@
 import type { ReactNode } from 'react';
-import type { AgentOutput, HumanizedAgentSummary } from '../types/job';
+import type {
+  AgentOutput,
+  AgentPayload,
+  DemographicChart,
+  DemographicChartSegment,
+  HumanizedAgentSummary,
+} from '../types/job';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+const AGENT_MODEL_LABELS: Record<string, string> = {
+  marketing: 'Code Preview Search 4o',
+  developer: 'GPT-5',
+  funding: 'GPT-5',
+};
 
 const stringify = (value: unknown): string => {
   if (value === undefined || value === null) return '';
@@ -82,10 +94,11 @@ const renderHumanizedSection = (title: string, items?: string[]) => {
 
 const renderHumanizedBlock = (agent: string, humanized: HumanizedAgentSummary) => {
   const agentLabel = agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : 'Agent';
-  const metaParts = [
-    humanized.model ? `Model: ${humanized.model}` : null,
-    humanized.generatedAt ? formatDate(humanized.generatedAt) : null,
-  ].filter(Boolean);
+  const normalizedAgent = agent.toLowerCase();
+  const modelLabel = AGENT_MODEL_LABELS[normalizedAgent] || humanized.model;
+  const metaParts = [modelLabel ? `Model: ${modelLabel}` : null, humanized.generatedAt ? formatDate(humanized.generatedAt) : null].filter(
+    Boolean
+  );
 
   return (
     <div className="humanized-block">
@@ -117,11 +130,196 @@ const renderRawBlock = (raw: unknown): ReactNode => {
   return <pre className="raw-output-block">{String(raw)}</pre>;
 };
 
+const PIE_COLORS = ['#60a5fa', '#f472b6', '#34d399', '#facc15', '#a855f7', '#fb923c'];
+
+type DemographicChartEntry = DemographicChart & { key: string };
+type DecoratedSegment = DemographicChartSegment & { percent: number; color: string };
+
+const isDemographicChartSegment = (segment: unknown): segment is DemographicChartSegment =>
+  !!segment &&
+  typeof segment === 'object' &&
+  typeof (segment as DemographicChartSegment).label === 'string' &&
+  Number.isFinite((segment as DemographicChartSegment).value);
+
+const isDemographicChart = (chart: unknown): chart is DemographicChart =>
+  !!chart &&
+  typeof chart === 'object' &&
+  typeof (chart as DemographicChart).title === 'string' &&
+  (chart as DemographicChart).type &&
+  ['pie', 'bar'].includes((chart as DemographicChart).type) &&
+  Array.isArray((chart as DemographicChart).segments) &&
+  (chart as DemographicChart).segments.every(isDemographicChartSegment);
+
+const getMarketingDemographicDetails = (payload?: AgentPayload) => {
+  if (!payload) return null;
+  const summary =
+    typeof payload.demographicSummary === 'string' ? payload.demographicSummary.trim() : undefined;
+  const persona =
+    typeof payload.demographicPersona === 'string' ? payload.demographicPersona.trim() : undefined;
+
+  const chartsObject = payload.demographicCharts;
+  const charts: DemographicChartEntry[] = [];
+  if (chartsObject && typeof chartsObject === 'object') {
+    Object.entries(chartsObject).forEach(([key, chart]) => {
+      if (isDemographicChart(chart) && chart.segments.length) {
+        charts.push({
+          ...chart,
+          key,
+        });
+      }
+    });
+  }
+
+  if (!charts.length && !summary && !persona) {
+    return null;
+  }
+
+  return {
+    summary,
+    persona,
+    charts,
+  };
+};
+
+const decoratePieSegments = (segments: DemographicChartSegment[]): DecoratedSegment[] => {
+  const total =
+    segments.reduce((acc, segment) => acc + Math.max(segment.value, 0), 0) || segments.length || 1;
+  return segments.map((segment, index) => {
+    const percent = Math.round((Math.max(segment.value, 0) / total) * 1000) / 10;
+    return {
+      ...segment,
+      percent: Number.isFinite(percent) ? percent : 0,
+      color: PIE_COLORS[index % PIE_COLORS.length],
+    };
+  });
+};
+
+const decorateBarSegments = (segments: DemographicChartSegment[]): DecoratedSegment[] => {
+  const max =
+    segments.reduce((acc, segment) => Math.max(acc, Math.max(segment.value, 0)), 0) || 1;
+  return segments.map((segment, index) => {
+    const percentage = Math.round((Math.max(segment.value, 0) / max) * 1000) / 10;
+    return {
+      ...segment,
+      percent: Number.isFinite(percentage) ? percentage : 0,
+      color: PIE_COLORS[index % PIE_COLORS.length],
+    };
+  });
+};
+
+const formatChartValue = (segment: DemographicChartSegment, metric?: string) => {
+  if (typeof segment.formattedValue === 'string' && segment.formattedValue.trim()) {
+    return segment.formattedValue;
+  }
+  if (metric === 'count') {
+    return new Intl.NumberFormat().format(Math.round(segment.value));
+  }
+  return `${Math.round(segment.value * 10) / 10}%`;
+};
+
+const PieChart = ({ segments }: { segments: DemographicChartSegment[] }) => {
+  if (!segments.length) return null;
+  const decorated = decoratePieSegments(segments);
+  let start = 0;
+  const gradientParts = decorated.map((segment) => {
+    const end = start + segment.percent;
+    const part = `${segment.color} ${start}% ${end}%`;
+    start = end;
+    return part;
+  });
+  const gradient =
+    gradientParts.length > 0 ? gradientParts.join(', ') : '#94a3b8 0% 100%';
+
+  return (
+    <div className="pie-chart">
+      <div className="pie-chart-graphic" style={{ backgroundImage: `conic-gradient(${gradient})` }} />
+      <ul className="chart-legend">
+        {decorated.map((segment) => (
+          <li key={segment.label}>
+            <span className="legend-color" style={{ backgroundColor: segment.color }} />
+            <div className="legend-text">
+              <strong>{segment.label}</strong>
+              <span>{segment.formattedValue || `${segment.percent}%`}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const BarChart = ({
+  segments,
+  metric,
+}: {
+  segments: DemographicChartSegment[];
+  metric?: string;
+}) => {
+  if (!segments.length) return null;
+  const decorated = decorateBarSegments(segments);
+  return (
+    <div className="bar-chart">
+      {decorated.map((segment) => (
+        <div key={segment.label} className="bar-row">
+          <span className="bar-label">{segment.label}</span>
+          <div className="bar-track">
+            <span
+              className="bar-fill"
+              style={{ width: `${Math.min(segment.percent, 100)}%`, backgroundColor: segment.color }}
+            ></span>
+          </div>
+          <span className="bar-value">{formatChartValue(segment, metric)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const MarketingDemographics = ({ payload }: { payload?: AgentPayload }) => {
+  const details = getMarketingDemographicDetails(payload);
+  if (!details) return null;
+  return (
+    <div className="marketing-demographics">
+      {(details.persona || details.summary) && (
+        <div className="demographic-summary">
+          {details.persona && (
+            <p className="persona-label">
+              Primary Persona: <strong>{details.persona}</strong>
+            </p>
+          )}
+          {details.summary && <p>{details.summary}</p>}
+        </div>
+      )}
+      {details.charts.length > 0 && (
+        <div className="demographic-charts">
+          {details.charts.map((chart) => (
+            <div key={chart.key} className="chart-card">
+              <div className="chart-header">
+                <div>
+                  <h4>{chart.title}</h4>
+                  {chart.description && <p>{chart.description}</p>}
+                </div>
+                <span className="chart-metric">{chart.metric === 'count' ? 'Users' : '%'}</span>
+              </div>
+              {chart.type === 'pie' ? (
+                <PieChart segments={chart.segments} />
+              ) : (
+                <BarChart segments={chart.segments} metric={chart.metric} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 type AgentOutputsProps = {
   outputs: AgentOutput[];
 };
 
-const AGENT_ORDER = ['competitor', 'developer', 'funding', 'marketing'];
+const AGENT_ORDER = ['marketing', 'developer', 'funding'];
+const HIDDEN_AGENTS = new Set(['competitor']);
 
 const statusLabel: Record<AgentOutput['status'], string> = {
   pending: 'Pending',
@@ -141,10 +339,9 @@ const agentIcons: Record<string, string> = {
   marketing: '📈',
   developer: '💻',
   funding: '💰',
-  competitor: '🏆',
 };
 
-const formatAgentOutput = (_agent: string, payload: Record<string, unknown> | undefined): ReactNode => {
+const formatAgentOutput = (_agent: string, payload: AgentPayload | undefined): ReactNode => {
   if (!payload) {
     return <p className="raw-placeholder">No data yet.</p>;
   }
@@ -160,6 +357,7 @@ const formatAgentOutput = (_agent: string, payload: Record<string, unknown> | un
 
   return (
     <div className="agent-output-stack">
+      {_agent === 'marketing' && <MarketingDemographics payload={payload} />}
       {humanized ? (
         renderHumanizedBlock(_agent, humanized)
       ) : (
@@ -190,7 +388,8 @@ const formatAgentOutput = (_agent: string, payload: Record<string, unknown> | un
 };
 
 export const AgentOutputs = ({ outputs }: AgentOutputsProps) => {
-  if (!outputs.length) {
+  const visibleOutputs = outputs.filter((output) => !HIDDEN_AGENTS.has(output.agent));
+  if (!visibleOutputs.length) {
     return null;
   }
 
@@ -200,7 +399,7 @@ export const AgentOutputs = ({ outputs }: AgentOutputsProps) => {
     return idx === -1 ? AGENT_ORDER.length + 1 : idx;
   };
 
-  const sortedOutputs = [...outputs].sort((a, b) => {
+  const sortedOutputs = [...visibleOutputs].sort((a, b) => {
     const agentDiff = getOrderIndex(a.agent) - getOrderIndex(b.agent);
     if (agentDiff !== 0) return agentDiff;
     return statusOrder[a.status] - statusOrder[b.status];

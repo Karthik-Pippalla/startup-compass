@@ -3,7 +3,6 @@ const Job = require('../../models/Job');
 const { marketingAgent } = require('./marketingAgent');
 const { developerAgent } = require('./developerAgent');
 const { fundingAgent } = require('./fundingAgent');
-const { competitorAgent } = require('./competitorAgent');
 const { checklistAgent } = require('./checklistAgent');
 const { humanizeAgentPayload } = require('../ai/humanizeAgentPayload');
 
@@ -45,7 +44,6 @@ const STRATEGY_AGENTS = [
   marketingAgent,
   developerAgent,
   fundingAgent,
-  competitorAgent,
   checklistAgent,
 ];
 
